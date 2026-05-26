@@ -1,0 +1,32 @@
+# Dependências
+node_modules/
+server/node_modules/
+
+# Ambiente (contém senhas e chaves)
+.env
+server/.env
+
+# Logs
+*.log
+server/server.log
+server/audit.json
+server/refresh_tokens.json
+
+# Dados de usuários (sensível)
+server/users.json
+server/user_permissions.json
+
+# Banco local
+db/
+
+# Build / cache
+.cache/
+dist/
+
+# Claude
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

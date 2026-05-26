@@ -1,0 +1,307 @@
+require('dotenv').config();
+const express = require('express');
+const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
+const path = require('path');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const Joi = require('joi');
+const logger = require('./logger');
+
+// ── Camada de usuários/auth com fallback JSON → MySQL ─────────────────────
+const usersDb = require('./users-db');
+
+const app = express();
+
+// Basic HTTP hardening — CSP configurado para permitir os scripts do frontend
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:     ["'self'"],
+      scriptSrc:      ["'self'", "https://cdn.jsdelivr.net"],
+      scriptSrcAttr:  ["'none'"],
+      styleSrcElem:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      // styleSrcAttr: necessário para os style="" no HTML estático (não há <style> blocos)
+      styleSrcAttr:   ["'unsafe-inline'"],
+      styleSrc:       ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc:         ["'self'", "data:"],
+      connectSrc:     ["'self'", "http://localhost:3000", "ws://localhost:3000", "https://viacep.com.br"],
+      fontSrc:        ["'self'", "https://fonts.gstatic.com"],
+      objectSrc:      ["'none'"],
+      frameAncestors: ["'none'"],
+    }
+  },
+  hsts: process.env.NODE_ENV === 'production'
+    ? { maxAge: 31536000, includeSubDomains: true }
+    : false
+}));
+
+// CORS: exigir origem explícita em produção; em dev local permite qualquer origem
+const API_ORIGIN = process.env.API_ORIGIN || null;
+if (!API_ORIGIN && process.env.NODE_ENV === 'production') {
+  logger.warn('API_ORIGIN não definida em produção — todas as origens são aceitas. Defina API_ORIGIN no .env.');
+}
+app.use(cors({ origin: API_ORIGIN || true, credentials: true }));
+app.use(bodyParser.json({ limit: '100kb' }));
+app.use(cookieParser());
+
+// Rate limiters
+const authLimiter    = rateLimit({ windowMs: 60 * 1000, max: 10,  standardHeaders: true, legacyHeaders: false, message: { ok:false, erro:'Muitas tentativas, aguarde um minuto.' } });
+const refreshLimiter = rateLimit({ windowMs: 60 * 1000, max: 30,  standardHeaders: true, legacyHeaders: false, message: { ok:false, erro:'Taxa excedida.' } });
+const writeLimiter   = rateLimit({ windowMs: 60 * 1000, max: 60,  standardHeaders: true, legacyHeaders: false, message: { ok:false, erro:'Muitas requisições. Aguarde um momento.' } });
+const readLimiter    = rateLimit({ windowMs: 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false, message: { ok:false, erro:'Muitas requisições. Aguarde um momento.' } });
+
+// CSRF: valida header Origin em requisições de escrita em produção
+function csrfCheck(req, res, next) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  if (process.env.NODE_ENV !== 'production' || !API_ORIGIN) return next();
+  const origin = req.headers.origin;
+  if (origin && !origin.startsWith(API_ORIGIN)) {
+    return res.status(403).json({ ok: false, erro: 'CSRF: origem não autorizada.' });
+  }
+  next();
+}
+app.use(csrfCheck);
+
+app.use(logger.requestMiddleware());
+
+const JWT_SECRET      = process.env.JWT_SECRET      || 'dev-secret-change-me';
+const JWT_SECRET_PREV = process.env.JWT_SECRET_PREV  || null;
+
+if (!process.env.JWT_SECRET) {
+  logger.warn('JWT_SECRET não definido. Usando valor padrão de desenvolvimento. Defina JWT_SECRET no .env para produção.');
+} else if (process.env.JWT_SECRET.length < 32) {
+  logger.warn(`JWT_SECRET curto (${process.env.JWT_SECRET.length} chars). Use pelo menos 32 caracteres aleatórios.`);
+}
+if (JWT_SECRET_PREV && JWT_SECRET_PREV === JWT_SECRET) {
+  logger.warn('JWT_SECRET_PREV igual a JWT_SECRET — a chave anterior deve ser diferente da atual.');
+}
+
+const JWT_EXP = process.env.JWT_EXP || '8h';
+const COOKIE_SECURE = (process.env.NODE_ENV === 'production') || (process.env.COOKIE_SECURE === 'true');
+
+// ── Helpers compartilhados ────────────────────────────────────────────────
+
+function audit(req, action, entityType, entityId, detail = null) {
+  const actorId = req.user ? req.user.userId : null;
+  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  const userAgent = (req.headers['user-agent'] || '').slice(0, 500);
+  return usersDb.appendAudit(action, actorId, { entityType, entityId: entityId ? String(entityId) : null, detail, ip, userAgent });
+}
+
+// JWT middleware — aceita Bearer header OU cookie httpOnly (auth_token)
+// Suporta rotação de chave via JWT_SECRET_PREV: tokens antigos continuam válidos
+// durante a transição enquanto novos tokens são emitidos com JWT_SECRET.
+function jwtMiddleware(req, res, next) {
+  let token = null;
+  const h = req.headers.authorization;
+  if (h && h.startsWith('Bearer ')) token = h.slice(7);
+  if (!token && req.cookies && req.cookies.auth_token) token = req.cookies.auth_token;
+  if (!token) return res.status(401).json({ ok:false, erro:'Unauthorized' });
+
+  const secrets = [JWT_SECRET];
+  if (JWT_SECRET_PREV && JWT_SECRET_PREV !== JWT_SECRET) secrets.push(JWT_SECRET_PREV);
+
+  for (const secret of secrets) {
+    try {
+      req.user = jwt.verify(token, secret);
+      return next();
+    } catch(e) { /* tenta próxima chave */ }
+  }
+  return res.status(401).json({ ok:false, erro:'Unauthorized' });
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.perfil !== 'admin') return res.status(403).json({ ok:false, erro:'Forbidden' });
+  next();
+}
+
+// Hierarquia: admin > gerente > operador > visualizador
+const ROLE_RANK = { admin: 4, gerente: 3, operador: 2, visualizador: 1 };
+function requireRole(minRole) {
+  return (req, res, next) => {
+    const rank = ROLE_RANK[req.user?.perfil] || 0;
+    if (rank < (ROLE_RANK[minRole] || 99)) {
+      return res.status(403).json({ ok:false, erro:'Forbidden — perfil insuficiente' });
+    }
+    next();
+  };
+}
+
+// Corrige double-encoding (UTF-8 bytes gravados como latin1/cp1252)
+const CP1252_TO_BYTE = {};
+[[0x20AC,0x80],[0x201A,0x82],[0x0192,0x83],[0x201E,0x84],
+ [0x2026,0x85],[0x2020,0x86],[0x2021,0x87],[0x02C6,0x88],
+ [0x2030,0x89],[0x0160,0x8A],[0x2039,0x8B],[0x0152,0x8C],
+ [0x017D,0x8E],[0x2018,0x91],[0x2019,0x92],[0x201C,0x93],
+ [0x201D,0x94],[0x2022,0x95],[0x2013,0x96],[0x2014,0x97],
+ [0x02DC,0x98],[0x2122,0x99],[0x0161,0x9A],[0x203A,0x9B],
+ [0x0153,0x9C],[0x017E,0x9E],[0x0178,0x9F]].forEach(function(p){
+  CP1252_TO_BYTE[String.fromCharCode(p[0])] = p[1];
+});
+const CP1252_CHARS = Object.keys(CP1252_TO_BYTE);
+function _decodeMojibake(str) {
+  if (typeof str !== 'string') return str;
+  var triggered = CP1252_CHARS.some(function(c) { return str.indexOf(c) >= 0; });
+  if (!triggered) { for (var i=0; i<str.length; i++) { var cc=str.charCodeAt(i); if (cc>=0x80&&cc<=0x9F){triggered=true;break;} } }
+  if (!triggered) return str;
+  try {
+    var bytes = [];
+    for (var j=0; j<str.length; j++) {
+      var ch=str[j], cp=str.charCodeAt(j);
+      if (cp<=0x7F)                            { bytes.push(cp); }
+      else if (cp>=0x80&&cp<=0x9F)             { bytes.push(cp); }
+      else if (CP1252_TO_BYTE[ch]!==undefined) { bytes.push(CP1252_TO_BYTE[ch]); }
+      else if (cp>=0xA0&&cp<=0xFF)             { bytes.push(cp); }
+      else                                      { bytes.push(0x3F); }
+    }
+    return Buffer.from(bytes).toString('utf8');
+  } catch(e) { return str; }
+}
+
+// ── Frontend estático ─────────────────────────────────────────────────────
+
+const PORT = process.env.PORT || 3000;
+const CLIENT_ROOT = path.join(__dirname, '..');
+try {
+  app.use(express.static(CLIENT_ROOT));
+  logger.info('Servindo frontend estático', { path: CLIENT_ROOT });
+} catch(e) {
+  logger.warn('Não foi possível servir arquivos estáticos', { err: e && e.message });
+}
+
+// ── Banco de dados ────────────────────────────────────────────────────────
+
+const db = (() => {
+  try { return require('./db'); } catch(e) { logger.warn('DB helper indisponível', { err: e && e.message }); return null; }
+})();
+
+// ── Migrações idempotentes de schema e índices ────────────────────────────
+// Promise exportada como app.migrationsReady — testes aguardam no beforeAll.
+async function _runMigrations() {
+  if (!db) return;
+  const addCol = async (tbl, col, def) => {
+    try { await db.query(`ALTER TABLE \`${tbl}\` ADD COLUMN \`${col}\` ${def}`); }
+    catch(e) { if (!e || e.errno !== 1060) throw e; }
+  };
+  const addIdx = async (tbl, name, cols) => {
+    try { await db.query(`ALTER TABLE \`${tbl}\` ADD INDEX \`${name}\` (${cols})`); }
+    catch(e) { if (!e || e.errno !== 1061) throw e; }
+  };
+
+  await addCol('lancamento', 'fornecedor_id', 'INT UNSIGNED DEFAULT NULL');
+  await addCol('conta',      'updated_at',    'DATETIME DEFAULT NULL');
+  await addCol('lancamento', 'updated_at',    'DATETIME DEFAULT NULL');
+
+  await addIdx('lancamento', 'idx_lanc_conta_del',  '`conta_id`, `deleted_at`');
+  await addIdx('lancamento', 'idx_lanc_data_del',   '`data`, `deleted_at`');
+  await addIdx('lancamento', 'idx_lanc_fornecedor', '`fornecedor_id`');
+
+  await addIdx('conta', 'idx_conta_del_codigo',  '`deleted_at`, `codigo`');
+  await addIdx('conta', 'idx_conta_parent_del',  '`parent_id`, `deleted_at`');
+
+  await addIdx('fornecedor', 'idx_forn_cpf',  '`cpf`');
+  await addIdx('fornecedor', 'idx_forn_cnpj', '`cnpj`');
+
+  await addIdx('recibo', 'idx_recibo_ano', '`ano`');
+}
+const migrationsReady = _runMigrations()
+  .catch(e => logger.warn('Migrações falharam', { err: e && e.message }));
+
+// ── Inicialização de tabelas opcionais ────────────────────────────────────
+
+async function _ensureFornecedorTable() {
+  if (!db) return;
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS \`fornecedor\` (
+      \`id\`          INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+      \`tipo_pessoa\`  VARCHAR(20)   NOT NULL DEFAULT 'juridica',
+      \`razao_social\` VARCHAR(200)  NOT NULL DEFAULT '',
+      \`nome_fantasia\`VARCHAR(200)  DEFAULT NULL,
+      \`cnpj\`         VARCHAR(20)   DEFAULT NULL,
+      \`cpf\`          VARCHAR(20)   DEFAULT NULL,
+      \`status\`       VARCHAR(20)   NOT NULL DEFAULT 'ativo',
+      \`dados\`        TEXT          NOT NULL,
+      \`created_at\`   DATETIME      DEFAULT NULL,
+      \`updated_at\`   DATETIME      DEFAULT NULL,
+      PRIMARY KEY (\`id\`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
+  `);
+}
+
+async function _ensureReciboTable() {
+  if (!db) return;
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS \`recibo\` (
+      \`id\`              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      \`numero\`          INT            NOT NULL,
+      \`ano\`             INT            NOT NULL,
+      \`lancamento_id\`   BIGINT UNSIGNED DEFAULT NULL,
+      \`conta_codigo\`    VARCHAR(64)    DEFAULT NULL,
+      \`fornecedor_nome\` VARCHAR(200)   NOT NULL DEFAULT '',
+      \`fornecedor_cpf\`  VARCHAR(20)    DEFAULT NULL,
+      \`data\`            DATE           NOT NULL,
+      \`valor\`           DECIMAL(19,2)  NOT NULL DEFAULT 0,
+      \`descricao\`       TEXT           DEFAULT NULL,
+      \`emitido_por\`     INT            DEFAULT NULL,
+      \`created_at\`      DATETIME       DEFAULT NULL,
+      \`assinado_em\`     DATETIME       DEFAULT NULL,
+      PRIMARY KEY (\`id\`),
+      UNIQUE KEY \`ux_recibo_num_ano\` (\`numero\`, \`ano\`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
+  `);
+  try { await db.query('ALTER TABLE `recibo` ADD COLUMN `assinado_em` DATETIME DEFAULT NULL'); } catch(e) { if (e.errno !== 1060) throw e; }
+}
+
+// ── Rotas da API ──────────────────────────────────────────────────────────
+
+const deps = {
+  db, logger, audit, Joi, bcrypt, jwt, usersDb,
+  JWT_SECRET, JWT_SECRET_PREV, JWT_EXP, COOKIE_SECURE,
+  jwtMiddleware, requireAdmin, requireRole,
+  readLimiter, writeLimiter, authLimiter, refreshLimiter,
+  _decodeMojibake,
+};
+
+app.use('/api', require('./routes/auth')(deps));
+app.use('/api', require('./routes/users')(deps));
+app.use('/api', require('./routes/contas')(deps));
+app.use('/api', require('./routes/lancamentos')(deps));
+app.use('/api', require('./routes/fornecedores')(deps));
+app.use('/api', require('./routes/recibos')(deps));
+
+// ── Exports e error handler ───────────────────────────────────────────────
+
+module.exports = app;
+module.exports.migrationsReady = migrationsReady;
+
+// Middleware global de erro — deve ficar após todas as rotas
+app.use((err, req, res, _next) => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  logger.error('Erro não tratado', { err: err && err.message, stack: !isProduction ? err && err.stack : undefined });
+  if (res.headersSent) return;
+  res.status(err.status || 500).json({
+    ok: false,
+    erro: isProduction ? 'Erro interno do servidor.' : (err.message || 'Erro interno.')
+  });
+});
+
+// Só fazer listen quando executado diretamente (não via require)
+if (require.main === module) {
+  (async () => {
+    try {
+      const pool = db && db.pool ? db.pool : null;
+      await usersDb.init(pool);
+      await usersDb.ensureAdmin();
+      await _ensureFornecedorTable();
+      await _ensureReciboTable();
+    } catch(e) { console.error('usersDb init error:', e.message); }
+    const server = app.listen(PORT, () => logger.info('Servidor iniciado', { url: 'http://localhost:' + PORT }));
+    server.on('error', (e) => logger.error('Erro no servidor HTTP', { err: e.message }));
+    process.on('uncaughtException', (e) => logger.error('Exceção não tratada', { err: e.message, stack: e.stack }));
+    process.on('unhandledRejection', (e) => logger.error('Promise rejeitada sem tratamento', { err: e && e.message }));
+  })();
+}

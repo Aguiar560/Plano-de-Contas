@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FinanceiroApp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     LOGIN OVERLAY
+══════════════════════════════════════════════════════════════════════ -->
+<div class="login-overlay" id="loginOverlay" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg width="48" height="48" viewBox="0 0 40 40" fill="none">
+        <rect width="40" height="40" rx="12" fill="#2563eb"/>
+        <path d="M10 13h20M10 20h13M10 27h16" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h1 class="login-title" id="loginTitle">FinanceiroApp</h1>
+    <p class="login-subtitle" id="loginSubtitle">Acesse sua conta para continuar</p>
+
+    <form id="loginForm" autocomplete="off" novalidate>
+      <div class="login-field">
+        <label class="login-label" for="loginUsuario">Usuário</label>
+        <div class="login-input-wrap">
+          <svg class="login-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <input type="text" id="loginUsuario" class="login-input" placeholder="Digite seu usuário"
+                 autocomplete="username" autocapitalize="off" spellcheck="false" required />
+        </div>
+      </div>
+      <div class="login-field">
+        <label class="login-label" for="loginSenha">Senha</label>
+        <div class="login-input-wrap">
+          <svg class="login-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <input type="password" id="loginSenha" class="login-input" placeholder="Digite sua senha"
+                 autocomplete="current-password" required />
+          <button type="button" class="login-toggle-senha" id="btnToggleSenha" tabindex="-1">
+            <svg id="iconSenhaOff" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            <svg id="iconSenhaOn" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="login-error" id="loginError" style="display:none" role="alert">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="loginErrorMsg"></span>
+      </div>
+
+      <button type="submit" class="btn btn-primary login-btn" id="btnLoginSubmit">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        <span id="loginBtnText">Entrar</span>
+      </button>
+      <div id="rememberMeWrap" style="display:flex;align-items:center;gap:8px;margin-top:10px;margin-left:4px">
+        <label style="font-size:13px;color:#475569;cursor:pointer"><input type="checkbox" id="rememberMe" /> Lembrar-me</label>
+      </div>
+    </form>
+    <p class="login-hint">Primeiro acesso? Contate o administrador do sistema.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     APP SHELL
+══════════════════════════════════════════════════════════════════════ -->
+<div class="app-shell" id="appShell">
+
+  <!-- ─────────────────────────────────────────────────────────────────
+       SIDEBAR
+  ───────────────────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- Logo / Brand -->
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+        </svg>
+      </div>
+      <div class="sidebar-logo-text">
+        <span class="sidebar-logo-title" id="sidebarAppTitle">FinanceiroApp</span>
+        <span class="sidebar-logo-subtitle" id="sidebarCompanyName">Carregando…</span>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav" role="navigation">
+      <span class="sidebar-group-label">Principal</span>
+
+      <button class="sidebar-item active" data-view="dashboard" title="Dashboard">
+        <svg class="sidebar-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        <span class="sidebar-item-text">Dashboard</span>
+      </button>
+
+      <button class="sidebar-item" data-view="fornecedores" title="Fornecedores">
+        <svg class="sidebar-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+        </svg>
+        <span class="sidebar-item-text">Fornecedores</span>
+      </button>
+
+      <button class="sidebar-item" data-view="plano" title="Plano de Contas">
+        <svg class="sidebar-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span class="sidebar-item-text">Plano de Contas</span>
+      </button>
+
+      <span class="sidebar-group-label">Análises</span>
+
+      <button class="sidebar-item" data-view="recibos" title="Recibos de Autônomo">
+        <svg class="sidebar-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+          <polyline points="9 12 10.5 13.5 13 11"/>
+        </svg>
+        <span class="sidebar-item-text">Recibos</span>
+      </button>
+
+      <button class="sidebar-item" data-view="relatorios" title="Relatórios">
+        <svg class="sidebar-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+        </svg>
+        <span class="sidebar-item-text">Relatórios</span>
+      </button>
+
+      <span class="sidebar-group-label">Sistema</span>
+
+      <button class="sidebar-item" data-view="config" title="Configurações">
+        <svg class="sidebar-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41M12 2v2M12 20v2M2 12h2M20 12h2"/>
+        </svg>
+        <span class="sidebar-item-text">Configurações</span>
+      </button>
+    </nav>
+
+    <!-- User footer -->
+    <div class="sidebar-footer">
+      <!-- user-badge ID kept for JS compatibility with auth.js -->
+      <div class="sidebar-user user-badge" id="userBadge" tabindex="0" role="button" aria-haspopup="true">
+        <div class="sidebar-user-avatar" id="userBadgeAvatar">A</div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name" id="userBadgeNome">Carregando…</div>
+          <div class="sidebar-user-role" id="userBadgePerfil">—</div>
+        </div>
+        <svg class="sidebar-user-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+      </div>
+      <!-- User dropdown -->
+      <div class="user-menu" id="userMenu" style="display:none" role="menu">
+        <button class="user-menu-item" id="btnTrocarSenha" role="menuitem">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Trocar Senha
+        </button>
+        <button class="user-menu-item" id="btnGerenciarUsuarios" role="menuitem" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Gerenciar Usuários
+        </button>
+        <div class="user-menu-sep"></div>
+        <button class="user-menu-item danger" id="btnLogout" role="menuitem">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Sair da Conta
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ─────────────────────────────────────────────────────────────────
+       MAIN AREA (topbar + content)
+  ───────────────────────────────────────────────────────────────────── -->
+  <div class="app-right">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 class="topbar-title" id="topbarTitle">Dashboard</h1>
+      </div>
+      <div class="topbar-right">
+        <!-- Global search button -->
+        <button id="btnOpenSearch" class="btn btn-sm btn-secondary" title="Busca global (Ctrl+K)" style="gap:6px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span style="font-size:12px;color:var(--c-text-muted)">Buscar</span>
+          <span class="search-palette-kbd">Ctrl+K</span>
+        </button>
+        <!-- Company pill -->
+        <div class="company-pill" id="companyPill" title="Empresa ativa">
+          <svg class="company-pill-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span class="company-pill-name" id="companyPillName">—</span>
+        </div>
+        <!-- Balance toggle (hidden until user has permission) -->
+        <div class="header-saldo" id="headerSaldo" style="display:none">
+          <button id="btnToggleSaldo" class="btn btn-sm btn-secondary" title="Mostrar/ocultar saldo total">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <span id="totalSaldoHeader" style="font-weight:700;font-size:14px;color:var(--c-primary)">—</span>
+        </div>
+        <!-- Export XML (compat) -->
+        <button id="btnExportXML" class="btn btn-sm btn-secondary" title="Exportar estrutura em XML" style="display:none">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          XML
+        </button>
+        <!-- Import OFX (shown only in plano view) -->
+        <button id="btnAbrirImportOFX" class="btn btn-sm btn-secondary" title="Importar extrato bancário OFX/CSV" style="display:none">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 5 17 10"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Importar OFX
+        </button>
+      </div>
+    </header>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         CONTENT AREA (all views)
+    ═══════════════════════════════════════════════════════════════════ -->
+    <div class="content-area">
+
+      <!-- ───────────────────────────────────────────────────────────
+           VIEW: DASHBOARD
+      ─────────────────────────────────────────────────────────────── -->
+      <div class="view active" id="view-dashboard">
+
+        <!-- Period selector -->
+        <div class="period-bar">
+          <button class="period-btn active" data-period="mes">Este mês</button>
+          <button class="period-btn" data-period="trimestre">Trimestre</button>
+          <button class="period-btn" data-period="ano">Este ano</button>
+          <span class="period-sep">|</span>
+          <input type="date" id="dashDtI" class="period-date" />
+          <span style="color:var(--c-text-muted);font-size:13px;padding:0 2px">até</span>
+          <input type="date" id="dashDtF" class="period-date" />
+          <button class="btn btn-sm btn-primary" id="btnDashAplicar">Aplicar</button>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="kpi-grid">
+          <div class="kpi-card entrada">
+            <div class="kpi-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 11 12 6 7 11"/><line x1="12" y1="18" x2="12" y2="6"/></svg>
+            </div>
+            <div class="kpi-body">
+              <div class="kpi-label">Total Entradas</div>
+              <div class="kpi-value" id="kpiEntradas">R$ 0,00</div>
+              <span class="kpi-change neutral" id="kpiEntradasPeriod">no período</span>
+            </div>
+          </div>
+
+          <div class="kpi-card saida">
+            <div class="kpi-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="7 13 12 18 17 13"/><line x1="12" y1="6" x2="12" y2="18"/></svg>
+            </div>
+            <div class="kpi-body">
+              <div class="kpi-label">Total Saídas</div>
+              <div class="kpi-value" id="kpiSaidas">R$ 0,00</div>
+              <span class="kpi-change neutral" id="kpiSaidasPeriod">no período</span>
+            </div>
+          </div>
+
+          <div class="kpi-card saldo">
+            <div class="kpi-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            </div>
+            <div class="kpi-body">
+              <div class="kpi-label">Saldo Líquido</div>
+              <div class="kpi-value" id="kpiSaldo">R$ 0,00</div>
+              <span class="kpi-change neutral" id="kpiSaldoStatus">—</span>
+            </div>
+          </div>
+
+          <div class="kpi-card orcamento">
+            <div class="kpi-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="kpi-body">
+              <div class="kpi-label">Orçamento Utilizado</div>
+              <div class="kpi-value" id="kpiOrcamento">—</div>
+              <span class="kpi-change neutral" id="kpiOrcLabel">Sem orçamento definido</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts row -->
+        <div class="charts-row">
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div>
+                <div class="chart-card-title">Evolução Mensal</div>
+                <div class="chart-card-subtitle">Entradas vs Saídas — últimos 6 meses</div>
+              </div>
+            </div>
+            <div style="position:relative;height:260px">
+              <canvas id="chartEvolucao"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div>
+                <div class="chart-card-title">Distribuição de Saídas</div>
+                <div class="chart-card-subtitle">Por categoria no período</div>
+              </div>
+            </div>
+            <div style="position:relative;height:220px">
+              <canvas id="chartDistribuicao"></canvas>
+            </div>
+            <div id="chartDistEmpty" style="display:none;text-align:center;padding:40px 0;color:var(--c-text-muted);font-size:13px">
+              Sem saídas no período
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent transactions -->
+        <div class="section-card">
+          <div class="section-card-header">
+            <div class="section-card-title">Lançamentos Recentes</div>
+          </div>
+          <div class="table-wrapper" style="border:none;box-shadow:none">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Conta</th>
+                  <th>Descrição</th>
+                  <th>Tipo</th>
+                  <th class="td-num">Valor</th>
+                </tr>
+              </thead>
+              <tbody id="dashRecentLanc">
+                <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--c-text-muted)">Carregando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- /view-dashboard -->
+
+
+      <!-- ───────────────────────────────────────────────────────────
+           VIEW: LANÇAMENTOS
+      ─────────────────────────────────────────────────────────────── -->
+      <div class="view" id="view-fornecedores">
+
+        <!-- Toolbar -->
+        <div class="page-toolbar">
+          <button class="btn btn-primary" id="btnNovoFornecedor">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Novo Fornecedor
+          </button>
+          <div class="toolbar-filters">
+            <div class="search-box">
+              <svg class="search-box-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="fornBusca" class="search-input" placeholder="Buscar por nome, CNPJ…" autocomplete="off" />
+            </div>
+            <select id="fornFiltroStatus" class="input-text" style="height:34px;font-size:13px;width:auto">
+              <option value="">Todos</option>
+              <option value="ativo">Ativos</option>
+              <option value="inativo">Inativos</option>
+            </select>
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn btn-sm btn-secondary" id="btnFornExportCSV" title="Exportar CSV">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Exportar CSV
+            </button>
+          </div>
+        </div>
+
+        <!-- Stats bar -->
+        <div class="summary-bar">
+          <div class="summary-item" style="border-left-color:var(--c-primary)">
+            <span class="summary-item-label">Total</span>
+            <span class="summary-item-value" id="fornTotal">0</span>
+          </div>
+          <div class="summary-item entrada">
+            <span class="summary-item-label">Ativos</span>
+            <span class="summary-item-value" id="fornAtivos">0</span>
+          </div>
+          <div class="summary-item saida">
+            <span class="summary-item-label">Inativos</span>
+            <span class="summary-item-value" id="fornInativos">0</span>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Documento</th>
+                <th>Razão Social / Nome</th>
+                <th>Telefone</th>
+                <th>Cidade / UF</th>
+                <th>Contas vinculadas</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tbodyFornecedores">
+              <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--c-text-muted)">Nenhum fornecedor cadastrado.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div><!-- /view-fornecedores -->
+
+      <!-- ── Modal Fornecedor ──────────────────────────────────────────── -->
+      <div class="modal-overlay" id="modalFornecedor" style="display:none" role="dialog" aria-modal="true" aria-labelledby="tituloFornecedor">
+        <div class="modal" style="width:680px;max-width:95vw">
+          <div class="modal-header">
+            <h3 class="modal-title" id="tituloFornecedor">Novo Fornecedor</h3>
+            <button class="modal-close" id="btnFecharFornecedor" aria-label="Fechar">&times;</button>
+          </div>
+          <div class="modal-body" style="max-height:70vh;overflow-y:auto">
+
+            <!-- Tipo de Pessoa -->
+            <div style="margin-bottom:14px">
+              <label class="form-label">Tipo de Pessoa</label>
+              <div id="fornTipoPessoaGroup" style="display:flex;border:1px solid var(--c-border);border-radius:var(--r-md);overflow:hidden;width:fit-content">
+                <button type="button" data-tipo="juridica"
+                  style="padding:6px 16px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:var(--c-primary);color:#fff;transition:background .15s">
+                  Pessoa Jurídica (CNPJ)
+                </button>
+                <button type="button" data-tipo="fisica"
+                  style="padding:6px 16px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:transparent;color:var(--c-text-muted);transition:background .15s">
+                  Pessoa Física (CPF)
+                </button>
+              </div>
+            </div>
+
+            <!-- Linha 1: Documento + Status -->
+            <div style="display:grid;grid-template-columns:1fr auto;gap:12px;margin-bottom:12px">
+              <div>
+                <label class="form-label" id="fornDocLabel">CNPJ</label>
+                <input type="text" id="fornCnpj" class="input-text" placeholder="00.000.000/0000-00" maxlength="18" autocomplete="off" />
+              </div>
+              <div>
+                <label class="form-label">Status</label>
+                <select id="fornStatus" class="input-text" style="height:38px">
+                  <option value="ativo">Ativo</option>
+                  <option value="inativo">Inativo</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Linha 2: Razão Social + Nome Fantasia -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+              <div>
+                <label class="form-label" id="fornRazaoLabel">Razão Social <span style="color:var(--c-saida)">*</span></label>
+                <input type="text" id="fornRazaoSocial" class="input-text" placeholder="Nome completo da empresa" autocomplete="off" />
+              </div>
+              <div id="fornNomeFantasiaRow">
+                <label class="form-label">Nome Fantasia</label>
+                <input type="text" id="fornNomeFantasia" class="input-text" placeholder="Nome comercial" autocomplete="off" />
+              </div>
+            </div>
+
+            <!-- Campos exclusivos Pessoa Física (recibo de autônomo) -->
+            <div id="fornPfExtraRow" style="display:none;margin-bottom:12px">
+              <div style="font-size:12px;font-weight:600;color:var(--c-text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Dados para Recibo de Autônomo</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+                <div>
+                  <label class="form-label">Identidade (RG)</label>
+                  <input type="text" id="fornRg" class="input-text" placeholder="00.000.000-0" maxlength="20" autocomplete="off" />
+                </div>
+                <div>
+                  <label class="form-label">Data de Nascimento <span style="color:var(--c-saida)">*</span></label>
+                  <input type="text" id="fornDataNascimento" class="input-text" placeholder="DD/MM/AAAA" maxlength="10" autocomplete="off" />
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div>
+                  <label class="form-label">Nº INSS/PIS</label>
+                  <input type="text" id="fornInssPis" class="input-text" placeholder="000.00000.00-0" maxlength="20" autocomplete="off" />
+                </div>
+                <div>
+                  <label class="form-label">Título de Eleitor</label>
+                  <input type="text" id="fornTituloEleitor" class="input-text" placeholder="Número do título" maxlength="30" autocomplete="off" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Linha 3: Telefone + Email -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+              <div>
+                <label class="form-label">Telefone</label>
+                <input type="text" id="fornTelefone" class="input-text" placeholder="(00) 00000-0000" maxlength="15" autocomplete="off" />
+              </div>
+              <div>
+                <label class="form-label">E-mail</label>
+                <input type="email" id="fornEmail" class="input-text" placeholder="contato@empresa.com.br" autocomplete="off" />
+              </div>
+            </div>
+
+            <!-- Endereço -->
+            <div style="font-size:12px;font-weight:600;color:var(--c-text-muted);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px">Endereço</div>
+
+            <!-- CEP + Logradouro + Número -->
+            <div style="display:grid;grid-template-columns:130px 1fr 90px;gap:12px;margin-bottom:12px">
+              <div>
+                <label class="form-label">CEP</label>
+                <input type="text" id="fornCep" class="input-text" placeholder="00000-000" maxlength="9" autocomplete="off" />
+              </div>
+              <div>
+                <label class="form-label">Logradouro</label>
+                <input type="text" id="fornLogradouro" class="input-text" placeholder="Rua, Av., Travessa…" autocomplete="off" />
+              </div>
+              <div>
+                <label class="form-label">Número</label>
+                <input type="text" id="fornNumero" class="input-text" placeholder="Nº" autocomplete="off" />
+              </div>
+            </div>
+
+            <!-- Complemento + Bairro + Cidade + UF -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 70px;gap:12px;margin-bottom:12px">
+              <div>
+                <label class="form-label">Complemento</label>
+                <input type="text" id="fornComplemento" class="input-text" placeholder="Sala, Bloco…" autocomplete="off" />
+              </div>
+              <div>
+                <label class="form-label">Bairro</label>
+                <input type="text" id="fornBairro" class="input-text" autocomplete="off" />
+              </div>
+              <div>
+                <label class="form-label">Cidade</label>
+                <input type="text" id="fornCidade" class="input-text" autocomplete="off" />
+              </div>
+              <div>
+                <label class="form-label">UF</label>
+                <input type="text" id="fornUf" class="input-text" maxlength="2" autocomplete="off" />
+              </div>
+            </div>
+
+            <!-- Contas vinculadas -->
+            <div style="font-size:12px;font-weight:600;color:var(--c-text-muted);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px">Contas vinculadas</div>
+            <div style="font-size:12px;color:var(--c-text-muted);margin-bottom:8px">
+              Selecione as contas às quais este fornecedor pode ser associado em lançamentos.
+            </div>
+            <div id="fornContasVinculadas" style="max-height:160px;overflow-y:auto;border:1px solid var(--c-border);border-radius:var(--r-md);padding:8px;display:flex;flex-direction:column;gap:4px">
+              <span style="color:var(--c-text-muted);font-size:13px">Nenhuma conta disponível.</span>
+            </div>
+
+            <!-- Observações -->
+            <div style="margin-top:12px">
+              <label class="form-label">Observações</label>
+              <textarea id="fornObs" class="input-text" rows="2" style="resize:vertical" placeholder="Informações adicionais…"></textarea>
+            </div>
+
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" id="btnCancelarFornecedor">Cancelar</button>
+            <button class="btn btn-primary" id="btnConfirmarFornecedor">Salvar Fornecedor</button>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ───────────────────────────────────────────────────────────
+           VIEW: PLANO DE CONTAS
+      ─────────────────────────────────────────────────────────────── -->
+      <div class="view view-flex" id="view-plano">
+
+        <!-- LEFT: Tree Panel -->
+        <aside class="panel-tree">
+          <div class="panel-header">
+            <h2>Estrutura de Contas</h2>
+            <span class="badge" id="badgeTotal">0 contas</span>
+          </div>
+
+          <!-- Search -->
+          <div class="busca-box">
+            <div class="busca-input-wrap">
+              <svg class="busca-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="inputBuscaConta" class="input-text input-busca"
+                     placeholder="Buscar por nome ou código… (Ctrl+F)" autocomplete="off"/>
+              <button id="btnLimparBusca" class="busca-clear" title="Limpar busca">✕</button>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="add-conta-box">
+            <div class="add-conta-input-row">
+              <button id="btnNovo" class="btn btn-primary btn-sm">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Nova Conta
+              </button>
+              <div style="display:flex;gap:5px;align-items:center;margin-left:auto">
+                <button id="btnShowEntradas" class="btn btn-sm" title="Filtrar Entradas">ENTRADAS</button>
+                <button id="btnShowSaidas"   class="btn btn-sm" title="Filtrar Saídas">SAÍDAS</button>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+              <label for="planoAnoFiltro" style="font-size:12px;color:var(--c-text-muted);white-space:nowrap">Ano:</label>
+              <select id="planoAnoFiltro" class="input-text" style="width:80px;font-size:12px;padding:3px 6px" title="Ano dos lançamentos"></select>
+              <span id="planoAnoCarregando" style="font-size:11px;color:var(--c-text-muted);display:none">Carregando…</span>
+            </div>
+          </div>
+
+          <div class="conta-actions" id="contaActions"></div>
+
+          <!-- Tree -->
+          <div class="tree-container" id="treeContainer">
+            <ul class="tree-root" id="treeRoot"></ul>
+          </div>
+        </aside>
+
+        <!-- Splitter -->
+        <div class="panel-splitter" id="panelSplitter" title="Arraste para redimensionar" role="separator" aria-orientation="vertical"></div>
+
+        <!-- RIGHT: Detail / Report Panel -->
+        <section class="panel-report" id="panelReport">
+
+          <!-- Welcome state -->
+          <div class="welcome-state" id="welcomeState">
+            <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+            </svg>
+            <h3 id="welcomeTitle">Plano de Contas</h3>
+            <p>Selecione uma conta na árvore para ver detalhes e lançamentos.</p>
+            <div class="welcome-tips">
+              <div class="tip">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span>Clique em uma conta para ver detalhes e lançamentos</span>
+              </div>
+              <div class="tip">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span>Arraste contas para reorganizar a hierarquia</span>
+              </div>
+              <div class="tip">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span>Duplo clique para renomear diretamente na árvore</span>
+              </div>
+              <div class="tip">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span>Use <kbd class="kbd-dark">Ctrl+F</kbd> para buscar por nome ou código</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Account detail -->
+          <div class="conta-detail" id="contaDetail" style="display:none">
+            <div class="detail-header">
+              <div class="detail-icon" id="detailIcon">E</div>
+              <div class="detail-header-info">
+                <h2 id="detailNome"></h2>
+                <p id="detailCaminho" class="detail-path"></p>
+              </div>
+              <div class="detail-actions">
+                <button id="btnRenomear" class="btn btn-xs btn-warning" disabled title="Renomear (F2)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button id="btnRemover" class="btn btn-xs btn-danger" disabled title="Remover conta (Del)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="detail-stats">
+              <div class="stat-card stat-card-orc" id="statOrcamento">
+                <span class="stat-label">Orçamento anual</span>
+                <span class="stat-value" id="statOrcamentoValor" style="cursor:pointer" title="Clique para editar">—</span>
+              </div>
+              <div class="stat-card" id="statSaldo">
+                <span class="stat-label">Saldo realizado</span>
+                <span class="stat-value" id="statSaldoValor">R$ 0,00</span>
+              </div>
+            </div>
+
+            <!-- Budget progress -->
+            <div id="orcProgressWrap" style="display:none">
+              <div class="orc-progress-header">
+                <span id="orcProgressLabel">Orçamento utilizado</span>
+                <span id="orcProgressPct" class="orc-progress-pct">0%</span>
+              </div>
+              <div class="orc-progress-bar">
+                <div class="orc-progress-fill" id="orcProgressFill"></div>
+              </div>
+            </div>
+            <div id="orcAlertaBanner" class="orc-alerta" style="display:none">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span id="orcAlertaTexto">Limite de orçamento excedido!</span>
+            </div>
+
+            <!-- Month summary -->
+            <div id="mesAtualCard" style="display:none"></div>
+
+            <!-- Lançamentos header -->
+            <div class="detail-lanc-header">
+              <h3 id="detailLancTitle">Lançamentos <span id="lancFiltroAtivoBadge" class="filtro-badge" style="display:none"></span></h3>
+              <div style="display:flex;gap:6px">
+                <button id="btnExportCSV" class="btn btn-sm btn-secondary" title="Exportar CSV">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  CSV
+                </button>
+                <button id="btnNovoLancamento" class="btn btn-sm btn-primary" title="Novo lançamento">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Novo Lançamento
+                </button>
+              </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="lanc-filtros" id="lancFiltros">
+              <div class="lanc-filtros-top">
+                <div class="lanc-filtro-atalhos">
+                  <button class="lanc-atalho" data-periodo="mes-atual">Este mês</button>
+                  <button class="lanc-atalho" data-periodo="mes-anterior">Mês ant.</button>
+                  <button class="lanc-atalho" data-periodo="ano-atual">Este ano</button>
+                </div>
+                <div class="lanc-filtros-ctrl">
+                  <div class="lanc-filtro-busca-wrap">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.2" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" id="lancFiltroBusca" class="input-text lanc-filtro-busca" placeholder="Buscar…" autocomplete="off" />
+                  </div>
+                  <select id="lancFiltroOrdem" class="input-text lanc-filtro-ordem" title="Ordenação">
+                    <option value="data-desc">Data ↓</option>
+                    <option value="data-asc">Data ↑</option>
+                    <option value="valor-desc">Valor ↓</option>
+                    <option value="valor-asc">Valor ↑</option>
+                  </select>
+                </div>
+              </div>
+              <div class="lanc-filtros-datas">
+                <span class="lanc-filtros-datas-label">Período</span>
+                <input type="date" id="lancFiltroDtI" class="input-text lanc-filtro-input" title="Data inicial" />
+                <span class="lanc-filtro-sep">–</span>
+                <input type="date" id="lancFiltroDtF" class="input-text lanc-filtro-input" title="Data final" />
+                <button id="btnLancLimparDatas" class="lanc-filtro-clear" title="Limpar datas" style="display:none">✕</button>
+              </div>
+            </div>
+
+            <div class="lanc-filtro-resumo" id="lancFiltroResumo" style="display:none"></div>
+
+            <!-- Lancamentos list -->
+            <div id="detailLancamentos" class="lanc-list"></div>
+          </div>
+
+        </section>
+      </div><!-- /view-plano -->
+
+
+      <!-- ───────────────────────────────────────────────────────────
+           VIEW: RELATÓRIOS
+      ─────────────────────────────────────────────────────────────── -->
+      <div class="view" id="view-relatorios">
+
+        <div class="report-shell">
+          <!-- Left sidebar: report types + filters -->
+          <div class="report-sidebar">
+            <div class="report-sidebar-section-title">Tipo de Relatório</div>
+
+            <button class="report-type-btn active" data-relview="dre">
+              <span class="report-type-name">DRE</span>
+              <span class="report-type-desc">Demonstração do Resultado</span>
+            </button>
+            <button class="report-type-btn" data-relview="sintetico">
+              <span class="report-type-name">Gerencial Sintético</span>
+              <span class="report-type-desc">Resumo por categoria</span>
+            </button>
+            <button class="report-type-btn" data-relview="analitico">
+              <span class="report-type-name">Gerencial Analítico</span>
+              <span class="report-type-desc">Detalhado por lançamento</span>
+            </button>
+            <button class="report-type-btn" data-relview="fluxo">
+              <span class="report-type-name">Fluxo de Caixa</span>
+              <span class="report-type-desc">Entradas e saídas cronológicas</span>
+            </button>
+            <button class="report-type-btn" data-relview="resumo">
+              <span class="report-type-name">Resumo Mensal</span>
+              <span class="report-type-desc">Comparativo mês a mês</span>
+            </button>
+            <button class="report-type-btn" data-relview="estrutura">
+              <span class="report-type-name">Estrutura do Plano</span>
+              <span class="report-type-desc">Hierarquia completa de contas</span>
+            </button>
+            <button class="report-type-btn" data-relview="orcamento">
+              <span class="report-type-name">Orçamento vs Realizado</span>
+              <span class="report-type-desc">Execução do orçamento por categoria</span>
+            </button>
+
+            <div class="report-sidebar-section-title" style="margin-top:8px">Período</div>
+
+            <div>
+              <div class="input-label">Data Inicial</div>
+              <input type="date" id="relDtInicio" class="input-text" />
+            </div>
+            <div>
+              <div class="input-label">Data Final</div>
+              <input type="date" id="relDtFim" class="input-text" />
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+              <button id="btnGerarRelatorio" class="btn btn-primary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                Gerar Relatório
+              </button>
+              <button id="btnImprimirRelatorio" class="btn btn-outline dark">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Imprimir
+              </button>
+            </div>
+
+            <!-- Hidden select kept for report.js compatibility -->
+            <select id="relTipo" style="display:none">
+              <option value="dre">DRE</option>
+              <option value="sintetico">Sintético</option>
+              <option value="analitico">Analítico</option>
+              <option value="resumo">Resumo Mensal</option>
+              <option value="fluxo">Fluxo de Caixa</option>
+              <option value="estrutura">Estrutura do Plano</option>
+              <option value="orcamento">Orçamento vs Realizado</option>
+            </select>
+          </div>
+
+          <!-- Report output -->
+          <div class="report-content" id="relatorioResultado">
+            <div class="empty-state">
+              <svg class="empty-state-icon" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              <div class="empty-state-title">Nenhum relatório gerado</div>
+              <div class="empty-state-text">Selecione o tipo de relatório, o período e clique em <strong>Gerar Relatório</strong>.</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /view-relatorios -->
+
+
+      <!-- ───────────────────────────────────────────────────────────
+           VIEW: RECIBOS DE AUTÔNOMO
+      ─────────────────────────────────────────────────────────────── -->
+      <div class="view" id="view-recibos">
+        <div class="page-header">
+          <div class="page-header-left">
+            <div class="page-header-title">Recibos de Autônomo</div>
+            <div class="page-header-subtitle">Histórico de recibos emitidos e controle de assinaturas</div>
+          </div>
+          <div class="page-header-actions" style="display:flex;gap:10px;align-items:center">
+            <select id="recibosAnoFiltro" class="input-select" style="width:100px"></select>
+            <input type="text" id="recibosSearchInput" class="input-text" placeholder="Buscar por nome ou CPF…" style="width:220px">
+          </div>
+        </div>
+
+        <div id="recibosTableWrap" style="overflow-x:auto">
+          <table class="data-table" id="recibosTable" style="width:100%;min-width:700px">
+            <thead>
+              <tr>
+                <th style="width:90px">Recibo Nº</th>
+                <th style="width:90px">Data</th>
+                <th>Autônomo</th>
+                <th style="width:120px">CPF</th>
+                <th style="width:110px;text-align:right">Valor</th>
+                <th style="width:140px;text-align:center">Assinatura</th>
+                <th style="width:60px"></th>
+              </tr>
+            </thead>
+            <tbody id="recibosTableBody">
+              <tr><td colspan="7" style="text-align:center;padding:32px;color:#94a3b8">Carregando…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="recibosPaginacao" style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"></div>
+      </div>
+
+      <!-- ───────────────────────────────────────────────────────────
+           VIEW: CONFIGURAÇÕES
+      ─────────────────────────────────────────────────────────────── -->
+      <div class="view" id="view-config">
+
+        <div class="page-header">
+          <div class="page-header-left">
+            <div class="page-header-title">Configurações</div>
+            <div class="page-header-subtitle">Gerencie usuários, permissões e preferências do sistema</div>
+          </div>
+        </div>
+
+        <div class="config-grid">
+          <!-- Identity card -->
+          <div class="config-card">
+            <div class="config-card-header">
+              <div class="config-card-icon" style="background:#f0f9ff">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+              </div>
+              <div>
+                <div class="config-card-title">Identidade</div>
+                <div class="config-card-desc">Nome da empresa e do sistema</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+              <div>
+                <label style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);display:block;margin-bottom:4px">Nome da empresa</label>
+                <input id="cfgEmpresaNome" type="text" class="input-text" placeholder="Ex: Empresa LTDA" style="width:100%">
+              </div>
+              <div>
+                <label style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);display:block;margin-bottom:4px">Nome do sistema</label>
+                <input id="cfgSistemaNome" type="text" class="input-text" placeholder="Ex: Plano de Contas" style="width:100%">
+              </div>
+            </div>
+            <button class="btn btn-primary" id="btnSalvarIdentidade">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13"/><polyline points="7 3 7 8 15 8"/></svg>
+              Salvar
+            </button>
+          </div>
+
+          <!-- Users card -->
+          <div class="config-card">
+            <div class="config-card-header">
+              <div class="config-card-icon" style="background:#eff6ff">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+              <div>
+                <div class="config-card-title">Usuários</div>
+                <div class="config-card-desc">Gerencie acessos e permissões</div>
+              </div>
+            </div>
+            <p style="font-size:13px;color:var(--c-text-muted);margin-bottom:16px;line-height:1.6">
+              Adicione, edite ou remova usuários e defina seus perfis de acesso (Administrador, Gerente, Operador, Visualizador).
+            </p>
+            <button class="btn btn-primary" id="btnAbrirUsuarios">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+              Gerenciar Usuários
+            </button>
+          </div>
+
+          <!-- Audit card -->
+          <div class="config-card">
+            <div class="config-card-header">
+              <div class="config-card-icon" style="background:#f0fdf4">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              </div>
+              <div>
+                <div class="config-card-title">Logs de Auditoria</div>
+                <div class="config-card-desc">Histórico de ações do sistema</div>
+              </div>
+            </div>
+            <p style="font-size:13px;color:var(--c-text-muted);margin-bottom:16px;line-height:1.6">
+              Consulte o histórico completo de ações realizadas no sistema: logins, criação de contas, lançamentos e alterações.
+            </p>
+            <button class="btn btn-primary" id="btnAbrirAuditLogs">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Ver Logs
+            </button>
+          </div>
+
+          <!-- Permissions card -->
+          <div class="config-card">
+            <div class="config-card-header">
+              <div class="config-card-icon" style="background:#fdf4ff">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9333ea" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1" fill="#9333ea"/></svg>
+              </div>
+              <div>
+                <div class="config-card-title">Permissões</div>
+                <div class="config-card-desc">Controle de acesso por usuário</div>
+              </div>
+            </div>
+            <p style="font-size:13px;color:var(--c-text-muted);margin-bottom:16px;line-height:1.6">
+              Defina individualmente o que cada usuário pode consultar, criar, editar e excluir no sistema.
+            </p>
+            <button class="btn btn-primary" id="btnAbrirPermissoes">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Gerenciar Permissões
+            </button>
+          </div>
+
+          <!-- Export card -->
+          <div class="config-card">
+            <div class="config-card-header">
+              <div class="config-card-icon" style="background:#fffbeb">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </div>
+              <div>
+                <div class="config-card-title">Exportar Dados</div>
+                <div class="config-card-desc">Backup e exportação da estrutura</div>
+              </div>
+            </div>
+            <p style="font-size:13px;color:var(--c-text-muted);margin-bottom:16px;line-height:1.6">
+              Exporte a estrutura completa do plano de contas em formato XML para backup ou migração.
+            </p>
+            <button class="btn btn-primary" id="btnExportXMLConfig">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Exportar XML
+            </button>
+          </div>
+
+        </div>
+      </div><!-- /view-config -->
+
+    </div><!-- /content-area -->
+  </div><!-- /app-right -->
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     OFX IMPORT MODAL
+════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalImportOFX" style="display:none" role="dialog" aria-modal="true">
+  <div class="modal" style="width:720px;max-width:96vw;max-height:88vh">
+    <div class="modal-header">
+      <h2>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 5 17 10"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Importar Extrato Bancário
+      </h2>
+      <button class="modal-close" id="btnFecharModalOFX">✕</button>
+    </div>
+
+    <!-- Step 1: Upload -->
+    <div id="ofxStep1" class="modal-body">
+      <p style="font-size:13px;color:var(--c-text-muted);margin-bottom:20px">Selecione um arquivo <strong>OFX</strong> (extrato bancário padrão) ou <strong>CSV</strong> exportado do seu banco.</p>
+      <div class="ofx-drop-zone" id="ofxDropZone">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--c-text-muted)" stroke-width="1.5" style="margin-bottom:10px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <div style="font-size:14px;font-weight:600;color:var(--c-text);margin-bottom:4px">Arraste o arquivo aqui</div>
+        <div style="font-size:13px;color:var(--c-text-muted)">ou clique para selecionar — <strong>.ofx</strong> / <strong>.csv</strong></div>
+        <input type="file" id="ofxFileInput" accept=".ofx,.csv,.txt" style="display:none">
+      </div>
+      <div id="ofxFileInfo" style="margin-top:12px;font-size:13px;color:var(--c-text-muted);min-height:20px"></div>
+    </div>
+
+    <!-- Step 2: Preview + mapping -->
+    <div id="ofxStep2" class="modal-body" style="display:none">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <label style="font-size:12px;font-weight:600;color:var(--c-text-muted);display:block;margin-bottom:5px">Conta destino *</label>
+          <select id="ofxContaSelect" class="input-text" style="width:100%">
+            <option value="">— Selecione —</option>
+          </select>
+        </div>
+        <div style="font-size:13px;color:var(--c-text-muted)" id="ofxImportCount"></div>
+      </div>
+      <!-- Header -->
+      <div class="ofx-row ofx-row-header" style="margin-bottom:4px">
+        <span>Data</span><span>Valor</span>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
+          <input type="checkbox" id="ofxCheckAll" checked style="accent-color:var(--c-primary)">
+          <span>Importar</span>
+        </label>
+        <span>Descrição</span>
+      </div>
+      <div id="ofxPreviewBody" style="max-height:300px;overflow-y:auto"></div>
+    </div>
+
+    <div class="modal-footer" style="justify-content:space-between">
+      <span style="font-size:12px;color:var(--c-text-muted)">Formatos suportados: OFX 1.x/2.x · CSV</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" id="btnCancelarOFX">Cancelar</button>
+        <button class="btn btn-secondary" id="btnOfxVoltar" style="display:none">← Voltar</button>
+        <button class="btn btn-primary" id="btnOfxProximo" disabled>Próximo →</button>
+        <button class="btn btn-primary" id="btnOfxImportar" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 5 17 10"/></svg>
+          Importar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     GLOBAL SEARCH PALETTE (Ctrl+K)
+════════════════════════════════════════════════════════════════════ -->
+<div id="searchPalette" style="display:none">
+  <div class="search-palette-box">
+    <div class="search-palette-input-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--c-text-muted)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="searchPaletteInput" class="search-palette-input" type="text" placeholder="Buscar contas, lançamentos, fornecedores…" autocomplete="off" spellcheck="false">
+      <span class="search-palette-kbd">Esc</span>
+    </div>
+    <div id="searchResults" class="search-palette-results"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     ONBOARDING WIZARD OVERLAY
+════════════════════════════════════════════════════════════════════ -->
+<div id="overlayOnboarding" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.7);z-index:2000;align-items:center;justify-content:center;backdrop-filter:blur(6px)">
+  <div style="background:var(--c-surface);border-radius:20px;box-shadow:var(--s-xl);width:560px;max-width:96vw;overflow:hidden;animation:slideUp .25s ease">
+
+    <!-- Progress dots -->
+    <div style="display:flex;gap:8px;justify-content:center;padding:24px 24px 0">
+      <span class="onb-dot active" data-dot="1" style="width:8px;height:8px;border-radius:50%;background:var(--c-primary);transition:background .2s"></span>
+      <span class="onb-dot" data-dot="2" style="width:8px;height:8px;border-radius:50%;background:var(--c-border);transition:background .2s"></span>
+      <span class="onb-dot" data-dot="3" style="width:8px;height:8px;border-radius:50%;background:var(--c-border);transition:background .2s"></span>
+    </div>
+
+    <!-- Passo 1: Boas-vindas + nome da empresa -->
+    <div class="onb-step" data-step="1" style="padding:32px">
+      <div style="text-align:center;margin-bottom:28px">
+        <div style="width:64px;height:64px;border-radius:16px;background:var(--c-primary-lt);display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--c-primary)" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </div>
+        <h2 style="font-size:22px;font-weight:700;color:var(--c-text);margin-bottom:8px">Bem-vindo ao sistema!</h2>
+        <p style="font-size:14px;color:var(--c-text-muted);line-height:1.6">Vamos configurar seu plano de contas em 3 passos rápidos. Você pode pular e fazer isso depois.</p>
+      </div>
+      <div style="margin-bottom:24px">
+        <label style="font-size:13px;font-weight:600;color:var(--c-text);display:block;margin-bottom:6px">Nome da empresa</label>
+        <input id="onbEmpresaNome" type="text" class="input-text" placeholder="Ex: Empresa LTDA" style="width:100%">
+      </div>
+      <div style="display:flex;gap:10px;justify-content:space-between">
+        <button class="btn btn-ghost" id="btnOnbPular" style="font-size:13px;color:var(--c-text-muted)">Pular configuração</button>
+        <button class="btn btn-primary" id="btnOnbProximo1">Próximo →</button>
+      </div>
+    </div>
+
+    <!-- Passo 2: Escolha do modelo -->
+    <div class="onb-step" data-step="2" style="display:none;padding:32px">
+      <div style="margin-bottom:24px">
+        <h2 style="font-size:18px;font-weight:700;color:var(--c-text);margin-bottom:6px">Escolha um modelo de plano</h2>
+        <p style="font-size:13px;color:var(--c-text-muted)">Vamos criar as contas principais para você. Pode adicionar ou remover depois.</p>
+      </div>
+      <div id="onbTemplateGrid" style="display:grid;gap:10px;margin-bottom:24px"></div>
+      <div style="display:flex;gap:10px;justify-content:space-between">
+        <button class="btn btn-ghost" id="btnOnbVoltar2">← Voltar</button>
+        <button class="btn btn-primary" id="btnOnbProximo2">Próximo →</button>
+      </div>
+    </div>
+
+    <!-- Passo 3: Confirmação -->
+    <div class="onb-step" data-step="3" style="display:none;padding:32px;text-align:center">
+      <div style="width:64px;height:64px;border-radius:16px;background:#f0fdf4;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h2 style="font-size:20px;font-weight:700;color:var(--c-text);margin-bottom:8px">Pronto para começar!</h2>
+      <p style="font-size:14px;color:var(--c-text-muted);line-height:1.6;margin-bottom:28px">Seu plano de contas será criado com a estrutura selecionada.<br>Depois é só lançar suas receitas e despesas.</p>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn btn-ghost" id="btnOnbVoltar3">← Voltar</button>
+        <button class="btn btn-primary" id="btnOnbFinalizar" style="min-width:160px">Criar e entrar</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div><!-- /app-shell -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODALS
+══════════════════════════════════════════════════════════════════════ -->
+
+<!-- Modal: Nova Conta -->
+<div class="modal-overlay" id="modalNovo" style="display:none" role="dialog" aria-modal="true" aria-labelledby="modalNovoTitle">
+  <div class="modal modal-small">
+    <div class="modal-header">
+      <h2 id="modalNovoTitle">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+        Nova Conta
+      </h2>
+      <button id="modalNovoClose" class="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:12px">
+        <label class="input-label">Natureza</label>
+        <select id="novoNatureza" class="input-text">
+          <option value="entrada">ENTRADA</option>
+          <option value="saida">SAÍDA</option>
+        </select>
+      </div>
+      <div style="margin-bottom:12px">
+        <label class="input-label">Tipo</label>
+        <select id="novoTipo" class="input-text">
+          <option value="grupo">GRUPO</option>
+          <option value="subconta">SUBCONTA</option>
+        </select>
+      </div>
+      <div style="margin-bottom:12px" id="novoParentRow">
+        <label class="input-label">Conta Pai</label>
+        <select id="novoParentSelect" class="input-text"></select>
+      </div>
+      <div>
+        <label class="input-label">Nome da Conta</label>
+        <input id="novoNome" class="input-text" placeholder="Ex: RECEITAS DE SERVIÇOS…" maxlength="80" />
+      </div>
+      <div class="modal-footer-btns">
+        <button id="modalNovoCancel" class="btn btn-secondary">Cancelar</button>
+        <button id="modalNovoConfirm" class="btn btn-primary">Criar Conta</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Renomear Conta -->
+<div class="modal-overlay" id="modalRenomear" style="display:none" role="dialog" aria-modal="true" aria-labelledby="tituloRenomear">
+  <div class="modal modal-small">
+    <div class="modal-header">
+      <h2 id="tituloRenomear">Renomear Conta</h2>
+      <button class="modal-close" id="btnFecharRenomear">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="input-label">Novo nome da conta</label>
+      <input type="text" id="inputRenomear" class="input-text" maxlength="80" />
+      <div class="modal-footer-btns">
+        <button id="btnCancelarRenomear" class="btn btn-secondary">Cancelar</button>
+        <button id="btnConfirmarRenomear" class="btn btn-primary">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Lançamento -->
+<div class="modal-overlay" id="modalLancamento" style="display:none" role="dialog" aria-modal="true" aria-labelledby="tituloLancamento">
+  <div class="modal" style="width:560px;max-width:96vw">
+    <div class="modal-header">
+      <h2>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6"/></svg>
+        <span id="tituloLancamento">Novo Lançamento</span>
+      </h2>
+      <button class="modal-close" id="btnFecharLancamento">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Conta seletor (visível quando aberto da view global) -->
+      <div id="lancContaSelectorRow" style="display:none;margin-bottom:14px">
+        <label class="form-label">Conta</label>
+        <select id="lancContaSelector" class="input-text"></select>
+      </div>
+      <!-- Info da conta (visível quando aberto da árvore) -->
+      <div class="lanc-conta-info" id="lancContaInfo" style="display:none;margin-bottom:14px">
+        <span class="lanc-conta-codigo" id="lancContaCodigo"></span>
+        <span class="lanc-conta-nome" id="lancContaNome"></span>
+        <span id="lancTipoBadge" class="lanc-tipo-badge"></span>
+      </div>
+
+      <!-- Data + Fornecedor -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <div>
+          <label class="form-label">Data</label>
+          <input type="date" id="inputLancData" class="input-text" />
+        </div>
+        <div>
+          <label class="form-label">
+            Fornecedor <span style="color:var(--c-saida)">*</span>
+          </label>
+          <div style="position:relative" id="fornAutoWrap">
+            <input type="text" id="inputLancFornecedorBusca" class="input-text" placeholder="Buscar fornecedor…" autocomplete="off" spellcheck="false">
+            <input type="hidden" id="inputLancFornecedor" value="">
+            <div id="fornAutoList" style="display:none;position:absolute;top:calc(100% + 2px);left:0;right:0;z-index:300;background:#fff;border:1px solid var(--c-border);border-radius:var(--r-md);max-height:200px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.18)"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cabeçalho dos itens -->
+      <div class="lanc-itens-header">
+        <span class="form-label" style="margin:0">Descrição <span style="color:#ef4444">*</span></span>
+        <span class="form-label" style="margin:0;text-align:right">Valor (R$) <span style="color:#ef4444">*</span></span>
+        <span></span>
+      </div>
+
+      <!-- Linhas de itens (geradas pelo JS) -->
+      <div id="lancItensContainer"></div>
+
+      <!-- Botão adicionar item -->
+      <button id="btnAdicionarItem" class="btn btn-sm btn-outline dark" style="margin-top:6px;width:100%">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Adicionar item
+      </button>
+
+      <!-- Total -->
+      <div class="lanc-total-row">
+        <span>Total</span>
+        <span id="lancTotalDisplay" class="lanc-total-value">R$ 0,00</span>
+      </div>
+
+    </div>
+    <!-- Gerar Recibo de Autônomo — visível apenas quando fornecedor PF selecionado -->
+    <div id="gerarReciboRow" style="display:none;padding:8px 20px;border-top:1px solid var(--c-border-light);background:var(--c-bg)">
+      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="chkGerarRecibo" style="accent-color:#16a34a;width:15px;height:15px;cursor:pointer">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <span>Gerar Recibo de Pagamento a Autônomo</span>
+        <span id="gerarReciboFornNome" style="color:var(--c-text-muted);font-size:11px"></span>
+      </label>
+    </div>
+
+    <div class="modal-footer">
+      <button id="btnCancelarLancamento" class="btn btn-secondary">Cancelar</button>
+      <button id="btnConfirmarLancamento" class="btn btn-primary" style="min-width:120px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>
+        Lançar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Confirmação genérica -->
+<div class="modal-overlay" id="modalConfirm" style="display:none" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <div class="modal modal-xs">
+    <div class="modal-header">
+      <h2 id="confirmTitle">Confirmar</h2>
+      <button class="modal-close" id="btnConfirmClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="confirmMsg" style="font-size:14px;line-height:1.6;color:#374151;margin-bottom:20px;white-space:pre-line"></p>
+      <div class="modal-footer-btns">
+        <button id="btnConfirmCancel" class="btn btn-secondary">Cancelar</button>
+        <button id="btnConfirmOk" class="btn btn-danger">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Gerenciar Usuários -->
+<div class="modal-overlay" id="modalUsuarios" style="display:none" role="dialog" aria-modal="true" aria-labelledby="tituloModalUsuarios">
+  <div class="modal" style="max-width:720px">
+    <div class="modal-header">
+      <h2 id="tituloModalUsuarios">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Gerenciar Usuários
+      </h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-outline dark btn-sm" id="btnVerLogsUsuarios" style="display:none">Logs</button>
+        <button class="modal-close" id="btnFecharUsuarios">✕</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="usuarios-form-wrap">
+        <h3 class="usuarios-form-titulo">Novo Usuário</h3>
+        <div class="usuarios-form-grid">
+          <div class="usuarios-field">
+            <label class="input-label">Usuário *</label>
+            <input type="text" id="novoUsuLogin" class="input-text" placeholder="login" maxlength="30" autocapitalize="off"/>
+          </div>
+          <div class="usuarios-field">
+            <label class="input-label">Nome completo *</label>
+            <input type="text" id="novoUsuNome" class="input-text" placeholder="Nome" maxlength="60"/>
+          </div>
+          <div class="usuarios-field">
+            <label class="input-label">Senha * <small>(mín. 6 caracteres)</small></label>
+            <input type="password" id="novoUsuSenha" class="input-text" placeholder="••••••" maxlength="50"/>
+            <div class="pw-strength" id="novoUsuPwStrength"><i style="width:0%"></i></div>
+          </div>
+          <div class="usuarios-field">
+            <label class="input-label">Perfil *</label>
+            <select id="novoUsuPerfil" class="input-text">
+              <option value="visualizador">Visualizador</option>
+              <option value="operador">Operador</option>
+              <option value="gerente">Gerente</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-success" id="btnCriarUsuario" style="margin-top:10px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Criar Usuário
+        </button>
+      </div>
+      <h3 class="usuarios-form-titulo" style="margin-top:20px">Usuários cadastrados</h3>
+      <div id="tabelaUsuarios" class="usuarios-tabela-wrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Trocar Senha -->
+<div class="modal-overlay" id="modalTrocarSenha" style="display:none" role="dialog" aria-modal="true">
+  <div class="modal modal-xs">
+    <div class="modal-header">
+      <h2 id="tituloTrocarSenha">Trocar Senha</h2>
+      <button class="modal-close" id="btnFecharTrocarSenha">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:12px">
+        <label class="input-label">Senha atual</label>
+        <input type="password" id="senhaAtualInput" class="input-text" placeholder="••••••" maxlength="50"/>
+      </div>
+      <div style="margin-bottom:12px">
+        <label class="input-label">Nova senha <small>(mín. 6 chars)</small></label>
+        <input type="password" id="novaSenhaInput" class="input-text" placeholder="••••••" maxlength="50"/>
+        <div class="pw-strength" id="trocarPwStrength"><i style="width:0%"></i></div>
+      </div>
+      <div style="margin-bottom:16px">
+        <label class="input-label">Confirmar nova senha</label>
+        <input type="password" id="confirmarSenhaInput" class="input-text" placeholder="••••••" maxlength="50"/>
+      </div>
+      <div class="login-error" id="trocarSenhaErro" style="display:none;margin-bottom:12px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="trocarSenhaErroMsg"></span>
+      </div>
+      <div class="modal-footer-btns">
+        <button id="btnCancelarTrocarSenha" class="btn btn-secondary">Cancelar</button>
+        <button id="btnConfirmarTrocarSenha" class="btn btn-primary">Alterar Senha</button>
+      </div>
+    </div>
+
+    <!-- Modal Redefinir senha (admin) — nested for compat -->
+    <div class="modal-overlay" id="modalRedefinirSenha" style="display:none" role="dialog" aria-modal="true">
+      <div class="modal modal-xs">
+        <div class="modal-header">
+          <h2 id="tituloRedefinirSenha">Redefinir Senha</h2>
+          <button class="modal-close" id="btnFecharRedefinirSenha">✕</button>
+        </div>
+        <div class="modal-body">
+          <p id="redefinirSenhaNomeUsuario" style="font-size:13px;color:#64748b;margin-bottom:12px"></p>
+          <div style="margin-bottom:12px">
+            <label class="input-label">Nova senha <small>(mín. 6 chars)</small></label>
+            <input type="password" id="redefinirSenhaInput" class="input-text" placeholder="••••••" maxlength="50"/>
+            <div class="pw-strength" id="redefinirPwStrength"><i style="width:0%"></i></div>
+          </div>
+          <div style="margin-bottom:16px">
+            <label class="input-label">Confirmar nova senha</label>
+            <input type="password" id="redefinirSenhaConfirmar" class="input-text" placeholder="••••••" maxlength="50"/>
+          </div>
+          <div class="login-error" id="redefinirSenhaErro" style="display:none;margin-bottom:12px">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+            <span id="redefinirSenhaErroMsg"></span>
+          </div>
+          <div class="modal-footer-btns">
+            <button id="btnCancelarRedefinirSenha" class="btn btn-secondary">Cancelar</button>
+            <button id="btnConfirmarRedefinirSenha" class="btn btn-primary" data-userid="">Redefinir</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Permissões por Usuário -->
+<div class="modal-overlay" id="modalPermissoes" style="display:none" role="dialog" aria-modal="true">
+  <div class="modal" style="width:680px;max-width:96vw">
+    <div class="modal-header">
+      <h2 style="display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Permissões por Usuário
+      </h2>
+      <button class="modal-close" id="btnFecharPermissoes">✕</button>
+    </div>
+    <div class="modal-body" style="padding:20px">
+
+      <!-- Seletor de usuário -->
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--c-border)">
+        <label style="font-size:13px;font-weight:600;white-space:nowrap;color:var(--c-text-muted)">Usuário:</label>
+        <select id="permUsuarioSelect" class="input-text" style="flex:1">
+          <option value="">— Selecione um usuário —</option>
+        </select>
+        <span id="permUsuarioBadge" style="display:none;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap"></span>
+      </div>
+
+      <!-- Corpo das permissões -->
+      <div id="permCorpo" style="min-height:200px">
+        <div style="text-align:center;padding:40px;color:var(--c-text-muted);font-size:13px">Selecione um usuário para configurar suas permissões.</div>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <span id="permSalvoInfo" style="font-size:12px;color:var(--c-text-muted)"></span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" id="btnCancelarPermissoes">Fechar</button>
+        <button class="btn btn-primary" id="btnSalvarPermissoes" disabled>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13"/><polyline points="7 3 7 8 15 8"/></svg>
+          Salvar Permissões
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Logs de Auditoria -->
+<div class="modal-overlay" id="modalAuditLogs" style="display:none" role="dialog" aria-modal="true">
+  <div class="modal modal-audit">
+    <div class="modal-header">
+      <h2 id="tituloAuditLogs">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Logs de Auditoria
+      </h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-outline dark btn-sm" id="btnExportarAuditCSV" title="Exportar CSV">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          CSV
+        </button>
+        <button class="modal-close" id="btnFecharAuditLogs">✕</button>
+      </div>
+    </div>
+    <div class="audit-filters">
+      <div class="audit-filter-row">
+        <div class="audit-filter-field">
+          <label class="input-label">De</label>
+          <input type="date" id="auditFiltroDataI" class="input-text input-sm"/>
+        </div>
+        <div class="audit-filter-field">
+          <label class="input-label">Até</label>
+          <input type="date" id="auditFiltroDataF" class="input-text input-sm"/>
+        </div>
+        <div class="audit-filter-field">
+          <label class="input-label">Entidade</label>
+          <select id="auditFiltroEntityType" class="input-text input-sm">
+            <option value="">Todos</option>
+            <option value="conta">Conta</option>
+            <option value="lancamento">Lançamento</option>
+            <option value="usuario">Usuário</option>
+          </select>
+        </div>
+        <div class="audit-filter-field">
+          <label class="input-label">Ação</label>
+          <select id="auditFiltroAction" class="input-text input-sm">
+            <option value="">Todas</option>
+            <optgroup label="Autenticação">
+              <option value="login">login</option>
+              <option value="failed_login">failed_login</option>
+            </optgroup>
+            <optgroup label="Contas">
+              <option value="conta_criada">conta_criada</option>
+              <option value="conta_editada">conta_editada</option>
+              <option value="conta_deletada">conta_deletada</option>
+            </optgroup>
+            <optgroup label="Lançamentos">
+              <option value="lancamento_criado">lancamento_criado</option>
+              <option value="lancamento_editado">lancamento_editado</option>
+              <option value="lancamento_deletado">lancamento_deletado</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="audit-filter-field">
+          <label class="input-label">Entidade / ID</label>
+          <input type="text" id="auditFiltroEntityId" class="input-text input-sm" placeholder="ex: 1.2.3 ou ID"/>
+        </div>
+        <div class="audit-filter-field audit-filter-btns">
+          <button class="btn btn-primary btn-sm" id="btnAuditBuscar">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Buscar
+          </button>
+          <button class="btn btn-outline dark btn-sm" id="btnAuditLimpar">Limpar</button>
+        </div>
+      </div>
+    </div>
+    <div class="audit-body">
+      <div id="auditLogsInfo" class="audit-info"></div>
+      <div id="auditLogsTabela" class="audit-tabela-wrap">
+        <p style="color:#94a3b8;font-size:13px;padding:16px">Use os filtros acima e clique em Buscar.</p>
+      </div>
+      <div class="audit-pagination" id="auditPaginacao" style="display:none">
+        <button class="btn btn-outline dark btn-sm" id="btnAuditPrev">‹ Anterior</button>
+        <span id="auditPaginaInfo" style="font-size:13px;color:#64748b"></span>
+        <button class="btn btn-outline dark btn-sm" id="btnAuditNext">Próxima ›</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST & LOADING ──────────────────────────────────────── -->
+<div class="toast-container" id="toastContainer"></div>
+
+<div id="loadingOverlay" class="hidden" role="status" aria-live="polite">
+  <div class="loading-spinner"></div>
+  <span class="loading-label" id="loadingLabel">Carregando…</span>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════════════════════════════════════ -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script src="config/config.js" charset="utf-8"></script>
+<script src="client/auth.js" charset="utf-8"></script>
+<script src="client/app.js" charset="utf-8"></script>
+<script src="client/nav.js" charset="utf-8"></script>
+<script src="client/tree.js" charset="utf-8"></script>
+<script src="client/report.js" charset="utf-8"></script>
+<script src="client/dashboard.js" charset="utf-8"></script>
+<script src="client/fornecedores-page.js" charset="utf-8"></script>
+<script src="client/recibo-autonomo.js" charset="utf-8"></script>
+<script src="client/recibos-page.js" charset="utf-8"></script>
+<script src="client/onboarding.js" charset="utf-8"></script>
+<script src="client/search.js" charset="utf-8"></script>
+<script src="client/ofx-import.js" charset="utf-8"></script>
+<script src="client/login.js" charset="utf-8"></script>
+</body>
+</html>
