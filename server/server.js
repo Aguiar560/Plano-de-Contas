@@ -39,12 +39,16 @@ app.use(helmet({
     : false
 }));
 
-// CORS: exigir origem explícita em produção; em dev local permite qualquer origem
+// CORS: origem explícita em produção; em dev apenas localhost
 const API_ORIGIN = process.env.API_ORIGIN || null;
+const _corsOrigin = API_ORIGIN
+  ? API_ORIGIN
+  : (process.env.NODE_ENV === 'production' ? false : 'http://localhost:3000');
 if (!API_ORIGIN && process.env.NODE_ENV === 'production') {
-  logger.warn('API_ORIGIN não definida em produção — todas as origens são aceitas. Defina API_ORIGIN no .env.');
+  logger.warn('API_ORIGIN não definida — CORS bloqueado para todas as origens externas em produção.');
 }
-app.use(cors({ origin: API_ORIGIN || true, credentials: true }));
+app.use(cors({ origin: _corsOrigin, credentials: true }));
+app.set('trust proxy', 1); // suporta X-Forwarded-For de proxies/nginx
 app.use(bodyParser.json({ limit: '100kb' }));
 app.use(cookieParser());
 
@@ -80,8 +84,16 @@ if (JWT_SECRET_PREV && JWT_SECRET_PREV === JWT_SECRET) {
   logger.warn('JWT_SECRET_PREV igual a JWT_SECRET — a chave anterior deve ser diferente da atual.');
 }
 
-const JWT_EXP = process.env.JWT_EXP || '8h';
+const JWT_EXP = process.env.JWT_EXP || '30m';
 const COOKIE_SECURE = (process.env.NODE_ENV === 'production') || (process.env.COOKIE_SECURE === 'true');
+
+// ── Blacklist de tokens revogados (logout real) ───────────────────────────
+// Map: jti → expiresAtMs. Limpo periodicamente para não crescer indefinidamente.
+const revokedTokens = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [jti, exp] of revokedTokens) if (exp < now) revokedTokens.delete(jti);
+}, 5 * 60 * 1000).unref();
 
 // ── Helpers compartilhados ────────────────────────────────────────────────
 
@@ -107,7 +119,11 @@ function jwtMiddleware(req, res, next) {
 
   for (const secret of secrets) {
     try {
-      req.user = jwt.verify(token, secret);
+      const payload = jwt.verify(token, secret);
+      if (payload.jti && revokedTokens.has(payload.jti)) {
+        return res.status(401).json({ ok:false, erro:'Unauthorized' });
+      }
+      req.user = payload;
       return next();
     } catch(e) { /* tenta próxima chave */ }
   }
@@ -191,6 +207,10 @@ async function _runMigrations() {
     try { await db.query(`ALTER TABLE \`${tbl}\` ADD INDEX \`${name}\` (${cols})`); }
     catch(e) { if (!e || e.errno !== 1061) throw e; }
   };
+  const modifyCol = async (tbl, col, def) => {
+    try { await db.query(`ALTER TABLE \`${tbl}\` MODIFY COLUMN \`${col}\` ${def}`); }
+    catch(e) { /* ignora se já foi modificado */ }
+  };
 
   await addCol('lancamento', 'fornecedor_id', 'INT UNSIGNED DEFAULT NULL');
   await addCol('conta',      'updated_at',    'DATETIME DEFAULT NULL');
@@ -207,6 +227,23 @@ async function _runMigrations() {
   await addIdx('fornecedor', 'idx_forn_cnpj', '`cnpj`');
 
   await addIdx('recibo', 'idx_recibo_ano', '`ano`');
+
+  // Segurança: expandir colunas de CPF/CNPJ para suportar valor criptografado
+  await modifyCol('fornecedor', 'cpf',           'VARCHAR(300) DEFAULT NULL');
+  await modifyCol('fornecedor', 'cnpj',          'VARCHAR(300) DEFAULT NULL');
+  await modifyCol('recibo',     'fornecedor_cpf', 'VARCHAR(300) DEFAULT NULL');
+
+  // Segurança: coluna para indicar que o refresh token está hasheado (SHA-256)
+  await addCol('refresh_token', 'hashed', 'TINYINT(1) NOT NULL DEFAULT 0');
+
+  // Purge único de refresh tokens não-hasheados legados (força re-login uma vez)
+  try {
+    const [[{ cnt }]] = await db.pool.query('SELECT COUNT(*) AS cnt FROM refresh_token WHERE hashed = 0');
+    if (cnt > 0) {
+      await db.pool.query('DELETE FROM refresh_token WHERE hashed = 0');
+      logger.info('[security] Refresh tokens legados removidos — usuários precisarão logar novamente.');
+    }
+  } catch(e) { /* refresh_token pode não ter a coluna ainda em instâncias muito antigas */ }
 }
 const migrationsReady = _runMigrations()
   .catch(e => logger.warn('Migrações falharam', { err: e && e.message }));
@@ -258,13 +295,21 @@ async function _ensureReciboTable() {
 
 // ── Rotas da API ──────────────────────────────────────────────────────────
 
+const cryptoUtils = require('./crypto-utils');
+if (!process.env.ENCRYPT_KEY) {
+  logger.warn('ENCRYPT_KEY não definida — CPF/CNPJ serão armazenados com prefixo PLAIN. Defina ENCRYPT_KEY no .env para criptografia real.');
+}
+
 const deps = {
   db, logger, audit, Joi, bcrypt, jwt, usersDb,
   JWT_SECRET, JWT_SECRET_PREV, JWT_EXP, COOKIE_SECURE,
   jwtMiddleware, requireAdmin, requireRole,
   readLimiter, writeLimiter, authLimiter, refreshLimiter,
-  _decodeMojibake,
+  _decodeMojibake, cryptoUtils, revokedTokens,
 };
+
+// Health check — para monitoramento/liveness probe
+app.get('/health', (req, res) => res.json({ ok: true, uptime: Math.floor(process.uptime()) }));
 
 app.use('/api', require('./routes/auth')(deps));
 app.use('/api', require('./routes/users')(deps));
@@ -290,6 +335,48 @@ app.use((err, req, res, _next) => {
 });
 
 // Só fazer listen quando executado diretamente (não via require)
+// ── Purge de retenção de dados (LGPD) ────────────────────────────────────
+async function _runRetentionCleanup() {
+  if (!db) return;
+  try {
+    const [r1] = await db.pool.query("DELETE FROM lancamento WHERE deleted_at IS NOT NULL AND deleted_at < DATE_SUB(NOW(), INTERVAL 90 DAY)");
+    const [r2] = await db.pool.query("DELETE FROM conta      WHERE deleted_at IS NOT NULL AND deleted_at < DATE_SUB(NOW(), INTERVAL 90 DAY)");
+    const [r3] = await db.pool.query("DELETE FROM audit_log  WHERE `when` < DATE_SUB(NOW(), INTERVAL 1 YEAR)");
+    const [r4] = await db.pool.query("DELETE FROM refresh_token WHERE expires_at < NOW()");
+    const total = (r1.affectedRows||0) + (r2.affectedRows||0) + (r3.affectedRows||0) + (r4.affectedRows||0);
+    if (total > 0) logger.info('[retention] Purge concluído', { lancamentos: r1.affectedRows, contas: r2.affectedRows, auditLog: r3.affectedRows, tokens: r4.affectedRows });
+  } catch(e) { logger.warn('[retention] Purge falhou', { err: e && e.message }); }
+}
+
+// ── Migração de CPF/CNPJ para formato criptografado ───────────────────────
+async function _migrateEncryptCpf() {
+  if (!db) return;
+  const { encrypt, isEncrypted } = cryptoUtils;
+  try {
+    const forns = await db.query('SELECT id, cpf, cnpj, dados FROM fornecedor WHERE cpf IS NOT NULL OR cnpj IS NOT NULL');
+    for (const f of forns) {
+      const updates = {};
+      if (f.cpf  && !isEncrypted(f.cpf))  updates.cpf  = encrypt(f.cpf);
+      if (f.cnpj && !isEncrypted(f.cnpj)) updates.cnpj = encrypt(f.cnpj);
+      try {
+        const dadosObj = JSON.parse(f.dados || '{}');
+        if (dadosObj.cpf || dadosObj.cnpj) {
+          delete dadosObj.cpf; delete dadosObj.cnpj;
+          updates.dados = JSON.stringify(dadosObj);
+        }
+      } catch { /* dados corrompido — ignora */ }
+      if (Object.keys(updates).length > 0) await db.pool.query('UPDATE fornecedor SET ? WHERE id = ?', [updates, f.id]);
+    }
+    const recibos = await db.query('SELECT id, fornecedor_cpf FROM recibo WHERE fornecedor_cpf IS NOT NULL');
+    for (const r of recibos) {
+      if (r.fornecedor_cpf && !isEncrypted(r.fornecedor_cpf)) {
+        await db.pool.query('UPDATE recibo SET fornecedor_cpf = ? WHERE id = ?', [encrypt(r.fornecedor_cpf), r.id]);
+      }
+    }
+    logger.info('[crypto] Migração de CPF/CNPJ concluída');
+  } catch(e) { logger.warn('[crypto] Migração de CPF/CNPJ falhou', { err: e && e.message }); }
+}
+
 if (require.main === module) {
   (async () => {
     try {
@@ -303,5 +390,10 @@ if (require.main === module) {
     server.on('error', (e) => logger.error('Erro no servidor HTTP', { err: e.message }));
     process.on('uncaughtException', (e) => logger.error('Exceção não tratada', { err: e.message, stack: e.stack }));
     process.on('unhandledRejection', (e) => logger.error('Promise rejeitada sem tratamento', { err: e && e.message }));
+    // Tarefas assíncronas pós-startup (não bloqueiam o servidor)
+    migrationsReady.then(() => {
+      _runRetentionCleanup();
+      _migrateEncryptCpf();
+    });
   })();
 }

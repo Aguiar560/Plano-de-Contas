@@ -156,8 +156,23 @@ function salvarIdentidade() {
   if (typeof showToast === 'function') showToast('Identidade salva!', 'success');
 }
 
+// ── Dark mode ──────────────────────────────────────────────────────────
+function _applyTheme(dark) {
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  localStorage.setItem('theme', dark ? 'dark' : 'light');
+}
+
+function toggleDarkMode() {
+  _applyTheme(document.documentElement.getAttribute('data-theme') !== 'dark');
+}
+
 window.addEventListener('load', () => {
   applyBranding();
+
+  // Botão de modo noturno
+  const btnDark = document.getElementById('btnDarkToggle');
+  if (btnDark) btnDark.addEventListener('click', toggleDarkMode);
+
   // Substituição dos inline handlers removidos do HTML (onclick/oninput)
   const btnSalvar = document.getElementById('btnSalvarIdentidade');
   if (btnSalvar) btnSalvar.addEventListener('click', salvarIdentidade);
@@ -166,7 +181,10 @@ window.addEventListener('load', () => {
     if (el) el.addEventListener('input', () => { el.dataset.dirty = '1'; });
   });
 });
-window.applyBranding = applyBranding;
+window.applyBranding      = applyBranding;
+window.toggleDarkMode     = toggleDarkMode;
+window._applyTheme        = _applyTheme;
+window._getBrandingValues = _getBrandingValues;
 
 // Expose globally
 window.navigateTo = navigateTo;

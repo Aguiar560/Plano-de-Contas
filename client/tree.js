@@ -411,22 +411,33 @@ function renderNode(conta, parentUL, isRootLevel = false) {
 
   row.addEventListener('dragover', (e) => {
     e.preventDefault();
-    if (treeState.dragSourceId && treeState.dragSourceId !== conta.id) {
+    if (!treeState.dragSourceId || treeState.dragSourceId === conta.id) return;
+    const rect = row.getBoundingClientRect();
+    const pct  = (e.clientY - rect.top) / rect.height;
+    row.classList.remove('drag-over', 'drop-before', 'drop-after');
+    if (pct < 0.30) {
+      row.classList.add('drop-before');
+      treeState.dropPosition = 'before';
+    } else if (pct > 0.70) {
+      row.classList.add('drop-after');
+      treeState.dropPosition = 'after';
+    } else {
       row.classList.add('drag-over');
-      e.dataTransfer.dropEffect = 'move';
+      treeState.dropPosition = 'inside';
     }
+    e.dataTransfer.dropEffect = 'move';
   });
 
   row.addEventListener('dragleave', () => {
-    row.classList.remove('drag-over');
+    row.classList.remove('drag-over', 'drop-before', 'drop-after');
   });
 
   row.addEventListener('drop', (e) => {
     e.preventDefault();
-    row.classList.remove('drag-over');
+    row.classList.remove('drag-over', 'drop-before', 'drop-after');
     const srcId = treeState.dragSourceId;
     if (!srcId || srcId === conta.id) return;
-    moverConta(srcId, conta.id);
+    moverConta(srcId, conta.id, treeState.dropPosition || 'inside');
   });
 
   parentUL.appendChild(li);
@@ -1396,15 +1407,21 @@ function _gravarLancamento(conta, valor, descricao, data, itens) {
         })
       });
       const j = await resp.json();
-      if (!j.ok) showToast('Erro ao salvar lançamento: ' + (j.erro || 'falha desconhecida'), 'error');
-      else {
+      if (!j.ok) {
+        showToast('Erro ao salvar lançamento: ' + (j.erro || 'falha desconhecida'), 'error');
+        repo.removerLancamento(conta, lanc.id);
+        renderTree();
+        mostrarDetalhe(conta);
+      } else {
         log.debug('[API] Lançamento salvo no banco, id=', j.id);
-        // Guardar o db_id no objeto do lançamento para usar na exclusão
         lanc.db_id = j.id;
-        repo.salvar(); // persistir o db_id no localStorage
+        repo.salvar();
       }
     } catch(e) {
       showToast('Sem conexão com o servidor ao salvar lançamento.', 'error');
+      repo.removerLancamento(conta, lanc.id);
+      renderTree();
+      mostrarDetalhe(conta);
     }
   })();
 
@@ -1714,7 +1731,7 @@ function iniciarRenomearInline(labelEl, conta) {
 }
 
 // ── Mover conta (drag & drop) ──────────────────────────────────────────────
-function moverConta(srcId, dstId) {
+function moverConta(srcId, dstId, position = 'inside') {
   const src = repo.findById(srcId);
   const dst = repo.findById(dstId);
   if (!src || !dst) return;
@@ -1727,14 +1744,22 @@ function moverConta(srcId, dstId) {
   // Remove do pai atual
   if (src.parent) src.parent.removeChild(src);
 
-  // Adiciona no destino
-  dst.addChild(src);
-  treeState.expanded.add(dst.id);
+  if (position === 'before' && dst.parent) {
+    dst.parent.insertChildBefore(src, dst);
+  } else if (position === 'after' && dst.parent) {
+    dst.parent.insertChildAfter(src, dst);
+  } else {
+    dst.addChild(src);
+    treeState.expanded.add(dst.id);
+  }
 
   repo.salvar();
   renderTree();
   selectConta(src.id);
-  showToast(`"${src.nome}" movido para "${dst.nome}"`, 'info');
+  const label = position === 'before' ? `antes de "${dst.nome}"` :
+                position === 'after'  ? `depois de "${dst.nome}"` :
+                `dentro de "${dst.nome}"`;
+  showToast(`"${src.nome}" movido ${label}`, 'info');
 }
 
 function toggleExpandAll() {

@@ -1287,3 +1287,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+// Expõe funções puras para testes automatizados
+try {
+  window.coletarLancamentosReais = coletarLancamentosReais;
+  window.coletarContas           = coletarContas;
+  window.calcularTotalConta      = calcularTotalConta;
+} catch(e) {}

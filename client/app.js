@@ -52,6 +52,31 @@ class ContaGerencial {
     this.lastChild = conta;
   }
 
+  /** Insere src antes de ref (ambos filhos deste nó) */
+  insertChildBefore(src, ref) {
+    src.parent = this;
+    src.nextSibling = null;
+    if (!this.firstChild || this.firstChild.id === ref.id) {
+      src.nextSibling = this.firstChild;
+      this.firstChild = src;
+      if (!this.lastChild) this.lastChild = src;
+    } else {
+      let prev = this.firstChild;
+      while (prev.nextSibling && prev.nextSibling.id !== ref.id) prev = prev.nextSibling;
+      src.nextSibling = prev.nextSibling;
+      prev.nextSibling = src;
+      if (!src.nextSibling) this.lastChild = src;
+    }
+  }
+
+  /** Insere src depois de ref (ambos filhos deste nó) */
+  insertChildAfter(src, ref) {
+    src.parent = this;
+    src.nextSibling = ref.nextSibling;
+    ref.nextSibling = src;
+    if (!src.nextSibling) this.lastChild = src;
+  }
+
   /** Remove subconta (igual a TContaGerencial.removeChild) */
   removeChild(conta) {
     if (!this.firstChild) return;
@@ -410,10 +435,10 @@ class PlanoContasRepository {
     conta.orcamento     = data.orcamento  || 0;
     conta.natureza      = data.natureza   || 'resultado';
     conta.codigo_banco  = data.codigo_banco || null;
-    conta.lancamentos = (data.lancamentos || []).map(l => {
+    conta.lancamentos = (data.lancamentos || []).filter(l => l.db_id).map(l => {
       const lanc = new Lancamento(l.tipo, l.valor, l.descricao || '', l.data);
       lanc.id           = l.id;
-      lanc.db_id        = l.db_id || null;
+      lanc.db_id        = l.db_id;
       lanc.itens        = l.itens || null;
       lanc.fornecedor_id = l.fornecedor_id || null;
       if (_nextLancId <= l.id) _nextLancId = l.id + 1;
@@ -565,7 +590,13 @@ class PlanoContasRepository {
 // ── Instância global ──────────────────────────────────────────────────────
 const repo = new PlanoContasRepository();
 // Algumas partes do código (ex: login.js) acessam window.repo — garantir compatibilidade
-try { window.repo = repo; } catch(e) { /* ignore in restricted contexts */ }
+try {
+  window.repo = repo;
+  // Expõe classes para testes automatizados (class declarations não são props de window)
+  window.Lancamento            = Lancamento;
+  window.ContaGerencial        = ContaGerencial;
+  window.PlanoContasRepository = PlanoContasRepository;
+} catch(e) { /* ignore in restricted contexts */ }
 
 // ── Utilitários de UI ─────────────────────────────────────────────────────
 /**

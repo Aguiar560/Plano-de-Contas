@@ -2,7 +2,7 @@
 
 const express = require('express');
 
-module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, readLimiter, jwtMiddleware, requireAdmin }) {
+module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, readLimiter, writeLimiter, jwtMiddleware, requireAdmin, db }) {
   const router = express.Router();
 
   router.get('/users', jwtMiddleware, requireAdmin, async (req, res) => {
@@ -57,7 +57,7 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
     } catch(e) { res.status(500).json({ ok:false, erro:'Erro ao redefinir senha' }); }
   });
 
-  router.post('/me/change-password', jwtMiddleware, async (req, res) => {
+  router.post('/me/change-password', writeLimiter, jwtMiddleware, async (req, res) => {
     const { atual, nova } = req.body;
     if (!atual || !nova) return res.status(400).json({ ok:false, erro:'Campos obrigatórios' });
     try {
@@ -147,6 +147,58 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
       });
       res.json({ ok:true, ...result });
     } catch(e){ console.error(e); res.status(500).json({ ok:false, erro:'Erro ao ler audit' }); }
+  });
+
+  // ── LGPD Art. 18-20: exportação e exclusão de dados pessoais ─────────────
+
+  router.get('/me/data-export', readLimiter, jwtMiddleware, async (req, res) => {
+    const id = req.user.userId;
+    try {
+      const u = await usersDb.findById(id);
+      if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
+      let auditEntries = [];
+      if (db) {
+        const [rows] = await db.pool.query(
+          'SELECT action, entity_type, entity_id, `when` FROM audit_log WHERE actor_user_id = ? ORDER BY `when` DESC LIMIT 500',
+          [id]
+        );
+        auditEntries = rows;
+      }
+      await audit(req, 'data_export', 'usuario', id, { usuario: u.usuario });
+      res.json({
+        ok: true,
+        exportadoEm: new Date().toISOString(),
+        usuario: { id: u.id, usuario: u.usuario, nome: u.nome, perfil: u.perfil, criadoEm: u.createdAt || null },
+        historico: auditEntries,
+      });
+    } catch(e) { res.status(500).json({ ok:false, erro:'Erro ao exportar dados' }); }
+  });
+
+  router.delete('/me', writeLimiter, jwtMiddleware, async (req, res) => {
+    const { senha } = req.body || {};
+    if (!senha) return res.status(400).json({ ok:false, erro:'Confirme com sua senha para excluir a conta.' });
+    try {
+      const u = await usersDb.findById(req.user.userId);
+      if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
+      if (u.perfil === 'admin') {
+        const all = await usersDb.listAll();
+        if (all.filter(x => x.perfil === 'admin' && x.ativo).length <= 1) {
+          return res.status(400).json({ ok:false, erro:'Não é possível excluir o único administrador.' });
+        }
+      }
+      if (!bcrypt.compareSync(senha, u.senhaHash)) {
+        return res.status(400).json({ ok:false, erro:'Senha incorreta.' });
+      }
+      // Anonimizar entradas de audit antes de remover (obrigação de rastreio financeiro)
+      if (db) {
+        await db.pool.query('UPDATE audit_log SET actor_user_id = NULL WHERE actor_user_id = ?', [u.id]);
+      }
+      await usersDb.deleteUser(u.id);
+      await audit(req, 'self_delete', 'usuario', u.id, { usuario: u.usuario });
+      res.clearCookie('auth_token');
+      res.clearCookie('refresh_token');
+      res.json({ ok:true, mensagem: 'Conta removida com sucesso.' });
+    } catch(e) { res.status(500).json({ ok:false, erro:'Erro ao excluir conta' }); }
   });
 
   return router;

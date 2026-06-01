@@ -440,3 +440,15 @@ window.addEventListener('plano:loaded', () => {
 // Expose globally
 window.updateDashboard = updateDashboard;
 window.initDashboard   = initDashboard;
+
+// Expõe funções puras para testes automatizados
+try {
+  window._fmtMoeda         = _fmtMoeda;
+  window._fmtMoedaCompact  = _fmtMoedaCompact;
+  window._fmtData          = _fmtData;
+  window._esc              = _esc;
+  window._isoToday         = _isoToday;
+  window._isoFirstOfMonth  = _isoFirstOfMonth;
+  window._isoLastOfMonth   = _isoLastOfMonth;
+  window._applyPeriod      = _applyPeriod;
+} catch(e) {}

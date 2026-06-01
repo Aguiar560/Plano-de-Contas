@@ -562,3 +562,10 @@ const auth = (function () {
     listAudit,
   };
 })();
+
+// Expõe para outros scripts e para testes automatizados
+try {
+  window.auth        = auth;
+  window.ROLES       = auth.ROLES;
+  window.PERMISSIONS = auth.PERMISSIONS;
+} catch(e) {}

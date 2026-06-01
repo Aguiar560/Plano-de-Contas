@@ -2,8 +2,9 @@
 
 const express = require('express');
 
-module.exports = function fornecedoresRoutes({ db, logger, Joi, readLimiter, writeLimiter, jwtMiddleware, requireRole }) {
+module.exports = function fornecedoresRoutes({ db, logger, Joi, readLimiter, writeLimiter, jwtMiddleware, requireRole, cryptoUtils }) {
   const router = express.Router();
+  const { encrypt, decrypt } = cryptoUtils;
 
   const _fornSchema = Joi.object({
     tipoPessoa:    Joi.string().valid('fisica','juridica').required(),
@@ -15,21 +16,28 @@ module.exports = function fornecedoresRoutes({ db, logger, Joi, readLimiter, wri
   }).unknown(true);
 
   function _fornRow(body) {
+    // CPF e CNPJ ficam criptografados nas colunas dedicadas; removidos do blob JSON
+    const dados = { ...body };
+    delete dados.cpf;
+    delete dados.cnpj;
     return {
       tipo_pessoa:   body.tipoPessoa  || 'juridica',
       razao_social:  body.razaoSocial || '',
       nome_fantasia: body.nomeFantasia || null,
-      cnpj:          body.cnpj  || null,
-      cpf:           body.cpf   || null,
+      cnpj:          body.cnpj  ? encrypt(body.cnpj)  : null,
+      cpf:           body.cpf   ? encrypt(body.cpf)   : null,
       status:        body.status || 'ativo',
-      dados:         JSON.stringify(body),
+      dados:         JSON.stringify(dados),
     };
   }
 
   function _fornFromRow(row) {
     try {
       const dados = JSON.parse(row.dados || '{}');
-      return { ...dados, id: row.id, status: row.status };
+      // Descriptografar das colunas dedicadas e sobrescrever o que vier do blob
+      const cpf  = decrypt(row.cpf)  ?? dados.cpf  ?? null;
+      const cnpj = decrypt(row.cnpj) ?? dados.cnpj ?? null;
+      return { ...dados, id: row.id, status: row.status, cpf, cnpj };
     } catch { return { id: row.id, status: row.status }; }
   }
 

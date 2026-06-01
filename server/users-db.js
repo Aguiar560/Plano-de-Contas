@@ -392,50 +392,56 @@ const REFRESH_FILE = path.join(__dirname, 'refresh_tokens.json');
 const crypto = require('crypto');
 
 function makeRefreshToken() { return crypto.randomBytes(32).toString('hex'); }
+function _hashRefresh(token) { return crypto.createHash('sha256').update(String(token)).digest('hex'); }
 
 async function issueRefreshToken(res, userId, COOKIE_SECURE) {
   const token = makeRefreshToken();
+  const tokenHash = _hashRefresh(token);
   const expiresMs = 7 * 24 * 60 * 60 * 1000;
   const expiresAt = Date.now() + expiresMs;
 
   if (_pool) {
-    // Limpar tokens expirados deste usuário antes de inserir
     await _pool.execute('DELETE FROM refresh_token WHERE usuario_id = ? AND expires_at < ?', [userId, Date.now()]);
-    await _pool.execute('INSERT INTO refresh_token (token, usuario_id, expires_at) VALUES (?,?,?)', [token, userId, expiresAt]);
+    await _pool.execute(
+      'INSERT INTO refresh_token (token, usuario_id, expires_at, hashed) VALUES (?,?,?,1)',
+      [tokenHash, userId, expiresAt]
+    );
   } else {
     const tokens = _loadRefreshJson();
     const now = Date.now();
     for (const [k, v] of Object.entries(tokens)) { if (v.expiresAt < now) delete tokens[k]; }
-    tokens[token] = { userId, expiresAt };
+    tokens[tokenHash] = { userId, expiresAt, hashed: true };
     _saveRefreshJson(tokens);
   }
 
   const cookieOpts = { httpOnly: true, sameSite: 'lax', maxAge: expiresMs };
   if (COOKIE_SECURE) cookieOpts.secure = true;
-  res.cookie('refresh_token', token, cookieOpts);
+  res.cookie('refresh_token', token, cookieOpts); // cookie tem o token RAW; banco tem o hash
   return token;
 }
 
 async function findRefreshToken(token) {
+  const tokenHash = _hashRefresh(token);
   if (!_pool) {
     const tokens = _loadRefreshJson();
-    const info = tokens[token];
+    const info = tokens[tokenHash];
     if (!info || Date.now() > info.expiresAt) return null;
     return { userId: info.userId, expiresAt: info.expiresAt };
   }
   const [rows] = await _pool.execute(
-    'SELECT usuario_id, expires_at FROM refresh_token WHERE token = ? AND expires_at > ? LIMIT 1',
-    [token, Date.now()]
+    'SELECT usuario_id, expires_at FROM refresh_token WHERE token = ? AND hashed = 1 AND expires_at > ? LIMIT 1',
+    [tokenHash, Date.now()]
   );
   return rows[0] ? { userId: rows[0].usuario_id, expiresAt: rows[0].expires_at } : null;
 }
 
 async function rotateRefreshToken(res, oldToken, userId, COOKIE_SECURE) {
+  const oldHash = _hashRefresh(oldToken);
   if (_pool) {
-    await _pool.execute('DELETE FROM refresh_token WHERE token = ?', [oldToken]);
+    await _pool.execute('DELETE FROM refresh_token WHERE token = ? AND hashed = 1', [oldHash]);
   } else {
     const tokens = _loadRefreshJson();
-    delete tokens[oldToken];
+    delete tokens[oldHash];
     _saveRefreshJson(tokens);
   }
   return issueRefreshToken(res, userId, COOKIE_SECURE);
@@ -443,11 +449,16 @@ async function rotateRefreshToken(res, oldToken, userId, COOKIE_SECURE) {
 
 async function deleteRefreshToken(res, token) {
   if (_pool) {
-    if (token) await _pool.execute('DELETE FROM refresh_token WHERE token = ?', [token]);
+    if (token) {
+      const tokenHash = _hashRefresh(token);
+      await _pool.execute('DELETE FROM refresh_token WHERE token = ? AND hashed = 1', [tokenHash]);
+    }
   } else {
-    const tokens = _loadRefreshJson();
-    if (token) delete tokens[token];
-    _saveRefreshJson(tokens);
+    if (token) {
+      const tokens = _loadRefreshJson();
+      delete tokens[_hashRefresh(token)];
+      _saveRefreshJson(tokens);
+    }
   }
   try { res.clearCookie('refresh_token'); } catch(e) {}
 }

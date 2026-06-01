@@ -18,7 +18,7 @@
 'use strict';
 
 const request = require('supertest');
-const { app, makeToken } = require('./helpers');
+const { app, makeToken, getAdminToken, ADMIN } = require('./helpers');
 
 // ── Helpers locais ─────────────────────────────────────────────────────────
 
@@ -346,4 +346,117 @@ describe('Hierarquia de perfis — endpoints protegidos', () => {
       expect(res.status).toBe(403);
     }
   );
+});
+
+// ── CRUD completo com DB real ─────────────────────────────────────────────
+
+const SKIP_DB = process.env.SKIP_DB_TESTS === 'true';
+const dbTest  = SKIP_DB ? test.skip : test;
+
+describe('Ciclo completo de usuário — com DB real', () => {
+  let adminToken;
+  let novoUserId;
+  const USUARIO_NOVO = 'crudtest' + Date.now().toString().slice(-6);
+
+  beforeAll(async () => { adminToken = await getAdminToken(); });
+
+  afterAll(async () => {
+    if (!novoUserId || !adminToken) return;
+    await request(app)
+      .delete('/api/users/' + novoUserId)
+      .set('Authorization', 'Bearer ' + adminToken)
+      .catch(() => {});
+  });
+
+  dbTest('POST cria usuário e retorna id numérico', async () => {
+    const res = await request(app)
+      .post('/api/users')
+      .set('Authorization', 'Bearer ' + adminToken)
+      .send({ usuario: USUARIO_NOVO, nome: 'CRUD Teste', senha: 'senha123', perfil: 'operador' });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(typeof res.body.user.id).toBe('number');
+    novoUserId = res.body.user.id;
+  });
+
+  dbTest('POST com usuário duplicado retorna 400', async () => {
+    if (!novoUserId) return;
+    const res = await request(app)
+      .post('/api/users')
+      .set('Authorization', 'Bearer ' + adminToken)
+      .send({ usuario: USUARIO_NOVO, nome: 'Outro', senha: 'senha123', perfil: 'operador' });
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+  });
+
+  dbTest('GET /api/users lista inclui o usuário criado', async () => {
+    if (!novoUserId) return;
+    const res = await request(app)
+      .get('/api/users')
+      .set('Authorization', 'Bearer ' + adminToken);
+    expect(res.status).toBe(200);
+    const found = res.body.users.find(u => u.id === novoUserId);
+    expect(found).toBeDefined();
+    expect(found.usuario).toBe(USUARIO_NOVO);
+    expect(found.senhaHash).toBeUndefined(); // nunca expõe hash
+  });
+
+  dbTest('PUT altera perfil do usuário', async () => {
+    if (!novoUserId) return;
+    const res = await request(app)
+      .put('/api/users/' + novoUserId)
+      .set('Authorization', 'Bearer ' + adminToken)
+      .send({ perfil: 'visualizador' });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+
+    const list = await request(app)
+      .get('/api/users')
+      .set('Authorization', 'Bearer ' + adminToken);
+    const u = list.body.users.find(x => x.id === novoUserId);
+    expect(u.perfil).toBe('visualizador');
+  });
+
+  dbTest('POST /reset-password altera a senha com sucesso', async () => {
+    if (!novoUserId) return;
+    const res = await request(app)
+      .post(`/api/users/${novoUserId}/reset-password`)
+      .set('Authorization', 'Bearer ' + adminToken)
+      .send({ nova: 'novaSenha456' });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+
+    // Confirma que a nova senha funciona no login
+    const login = await request(app)
+      .post('/api/login')
+      .send({ usuario: USUARIO_NOVO, senha: 'novaSenha456' });
+    expect(login.status).toBe(200);
+  });
+
+  dbTest('DELETE remove o usuário', async () => {
+    if (!novoUserId) return;
+    const res = await request(app)
+      .delete('/api/users/' + novoUserId)
+      .set('Authorization', 'Bearer ' + adminToken);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+
+    const list = await request(app)
+      .get('/api/users')
+      .set('Authorization', 'Bearer ' + adminToken);
+    expect(list.body.users.find(u => u.id === novoUserId)).toBeUndefined();
+    novoUserId = null; // já foi limpo
+  });
+
+  dbTest('não é possível remover o último admin', async () => {
+    const adminId = (await request(app).get('/api/users').set('Authorization', 'Bearer ' + adminToken))
+      .body.users.find(u => u.perfil === 'admin')?.id;
+    if (!adminId) return;
+
+    const res = await request(app)
+      .delete('/api/users/' + adminId)
+      .set('Authorization', 'Bearer ' + adminToken);
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+  });
 });

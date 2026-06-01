@@ -58,6 +58,8 @@
         return;
       }
 
+      const isAdmin = typeof auth !== 'undefined' && auth.perfil() === 'admin';
+
       tbody.innerHTML = _recibosAtual.map(r => {
         const numFmt     = String(r.numero).padStart(4, '0') + '/' + r.ano;
         const assinado   = !!r.assinado_em;
@@ -79,11 +81,15 @@
           <td style="color:#64748b">${r.fornecedor_cpf || '—'}</td>
           <td style="text-align:right;font-weight:600">R$ ${_fmtMoeda(r.valor)}</td>
           <td style="text-align:center">${statusHtml}</td>
-          <td style="text-align:center">
+          <td style="text-align:center;white-space:nowrap">
             <button class="btn-reimprimir" data-id="${r.id}" title="Reimprimir"
               style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:4px;border-radius:4px">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
             </button>
+            ${isAdmin ? `<button class="btn-excluir-recibo" data-id="${r.id}" title="Excluir recibo"
+              style="background:none;border:none;cursor:pointer;color:#ef4444;padding:4px;border-radius:4px;opacity:0.7">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+            </button>` : ''}
           </td>
         </tr>`;
       }).join('');
@@ -112,6 +118,9 @@
           const r = _recibosAtual.find(x => x.id === +btn.dataset.id);
           if (r) _reimprimirRecibo(r);
         });
+      });
+      tbody.querySelectorAll('.btn-excluir-recibo').forEach(btn => {
+        btn.addEventListener('click', () => _excluirRecibo(+btn.dataset.id, btn));
       });
 
     } catch (e) {
@@ -174,6 +183,37 @@
         if (typeof showToast === 'function') showToast('Sem conexão com o servidor.', 'error');
         btn.disabled    = false;
         btn.textContent = 'Confirmar assinatura';
+      }
+    });
+  }
+
+  async function _excluirRecibo(id, btn) {
+    const r = _recibosAtual.find(x => x.id === id);
+    const numFmt = r ? String(r.numero).padStart(4, '0') + '/' + r.ano : '#' + id;
+
+    const _doConfirm = (cb) => {
+      if (typeof confirmar === 'function') {
+        confirmar('Excluir Recibo', `Excluir permanentemente o recibo ${numFmt}? Esta ação não pode ser desfeita.`, cb, { confirmLabel: 'Excluir', confirmClass: 'btn-danger' });
+      } else if (confirm(`Excluir permanentemente o recibo ${numFmt}?`)) {
+        cb();
+      }
+    };
+
+    _doConfirm(async () => {
+      btn.disabled = true;
+      try {
+        const resp = await fetch(apiUrl('/api/recibos/' + id), { method: 'DELETE', credentials: 'include' });
+        const j    = await resp.json();
+        if (j.ok) {
+          if (typeof showToast === 'function') showToast('Recibo excluído.', 'success');
+          _carregarRecibos();
+        } else {
+          if (typeof showToast === 'function') showToast(j.erro || 'Erro ao excluir', 'error');
+          btn.disabled = false;
+        }
+      } catch {
+        if (typeof showToast === 'function') showToast('Sem conexão com o servidor.', 'error');
+        btn.disabled = false;
       }
     });
   }

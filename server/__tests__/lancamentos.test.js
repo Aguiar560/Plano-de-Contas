@@ -137,6 +137,13 @@ describe('Fluxo completo de lançamento — DB real', () => {
 
   beforeAll(async () => {
     token = await getAdminToken();
+    // Limpar resíduos de execuções anteriores que falharam antes do cleanup
+    if (!SKIP_DB) {
+      const db = require('../db');
+      await db.pool.query(
+        "UPDATE lancamento SET deleted_at = NOW() WHERE deleted_at IS NULL AND descricao IN ('Lançamento de teste automatizado', 'Lançamento editado pelo teste')"
+      ).catch(() => {});
+    }
   });
 
   // Safety net: garante remoção mesmo se o teste de exclusão falhou

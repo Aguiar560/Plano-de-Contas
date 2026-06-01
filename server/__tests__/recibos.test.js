@@ -192,3 +192,98 @@ describe('Fluxo completo de recibo — com DB', () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ── CPF criptografado em recibos ──────────────────────────────────────────
+
+describe('CPF do autônomo é criptografado no banco', () => {
+  const ANO_CPF = 2098;
+  const CPF = '321.654.987-00';
+  let adminToken;
+  let reciboId;
+
+  beforeAll(async () => { adminToken = await getAdminToken(); });
+
+  afterAll(async () => {
+    if (!reciboId || !adminToken) return;
+    await request(app)
+      .delete('/api/recibos/' + reciboId)
+      .set('Authorization', 'Bearer ' + adminToken)
+      .catch(() => {});
+  });
+
+  dbTest('POST recibo com CPF armazena criptografado no banco', async () => {
+    const res = await request(app)
+      .post('/api/recibos')
+      .set('Authorization', 'Bearer ' + adminToken)
+      .send({ fornecedor_nome: 'Autonomo CPF Test', fornecedor_cpf: CPF,
+              data: `${ANO_CPF}-01-15`, valor: 500 });
+    expect(res.status).toBe(200);
+    reciboId = res.body.id;
+
+    // Verifica no banco que o CPF está criptografado
+    const db = require('../db');
+    const [rows] = await db.pool.query('SELECT fornecedor_cpf FROM recibo WHERE id = ?', [reciboId]);
+    expect(rows[0].fornecedor_cpf).not.toBe(CPF); // nunca plaintext
+  });
+
+  dbTest('GET recibos retorna CPF descriptografado', async () => {
+    if (!reciboId) return;
+    const res = await request(app)
+      .get(`/api/recibos?ano=${ANO_CPF}`)
+      .set('Authorization', 'Bearer ' + adminToken);
+    expect(res.status).toBe(200);
+    const recibo = res.body.recibos.find(r => r.id === reciboId);
+    expect(recibo).toBeDefined();
+    expect(recibo.fornecedor_cpf).toBe(CPF);
+  });
+});
+
+// ── DELETE /api/recibos/:id (admin) ──────────────────────────────────────
+
+describe('DELETE /api/recibos/:id', () => {
+  test('sem token retorna 401', async () => {
+    const res = await request(app).delete('/api/recibos/1');
+    expect(res.status).toBe(401);
+  });
+
+  test('operador (não admin) retorna 403', async () => {
+    const { makeToken } = require('./helpers');
+    const token = makeToken({ perfil: 'operador' });
+    const res = await request(app)
+      .delete('/api/recibos/1')
+      .set('Authorization', 'Bearer ' + token);
+    expect(res.status).toBe(403);
+  });
+
+  test('id inexistente retorna 404', async () => {
+    const { makeToken } = require('./helpers');
+    const token = makeToken({ perfil: 'admin' });
+    const res = await request(app)
+      .delete('/api/recibos/999999999')
+      .set('Authorization', 'Bearer ' + token);
+    expect(res.status).toBe(404);
+  });
+
+  dbTest('admin pode excluir recibo existente', async () => {
+    const adminToken = await getAdminToken();
+    // Cria recibo só para testar delete
+    const create = await request(app)
+      .post('/api/recibos')
+      .set('Authorization', 'Bearer ' + adminToken)
+      .send({ fornecedor_nome: 'Delete Test', data: '2097-03-01', valor: 100 });
+    expect(create.status).toBe(200);
+    const id = create.body.id;
+
+    const del = await request(app)
+      .delete('/api/recibos/' + id)
+      .set('Authorization', 'Bearer ' + adminToken);
+    expect(del.status).toBe(200);
+    expect(del.body.ok).toBe(true);
+
+    // Confirmação: não aparece mais na listagem
+    const list = await request(app)
+      .get('/api/recibos?ano=2097')
+      .set('Authorization', 'Bearer ' + adminToken);
+    expect(list.body.recibos.find(r => r.id === id)).toBeUndefined();
+  });
+});

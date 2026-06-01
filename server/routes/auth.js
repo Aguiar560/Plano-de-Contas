@@ -1,9 +1,23 @@
 'use strict';
 
 const express = require('express');
+const crypto  = require('crypto');
 
-module.exports = function authRoutes({ db, logger, audit, Joi, bcrypt, jwt, usersDb, JWT_SECRET, JWT_EXP, COOKIE_SECURE, authLimiter, refreshLimiter, jwtMiddleware }) {
+module.exports = function authRoutes({ db, logger, audit, Joi, bcrypt, jwt, usersDb, JWT_SECRET, JWT_EXP, COOKIE_SECURE, authLimiter, refreshLimiter, jwtMiddleware, revokedTokens }) {
   const router = express.Router();
+
+  function _accessCookieMs() {
+    // Converte JWT_EXP (ex: '30m', '1h') em ms para o cookie
+    const m = String(JWT_EXP).match(/^(\d+)(m|h|d|s)$/);
+    if (!m) return 30 * 60 * 1000; // fallback 30 min
+    const n = parseInt(m[1], 10);
+    return n * ({ s: 1000, m: 60000, h: 3600000, d: 86400000 }[m[2]] || 60000);
+  }
+
+  function _signAccess(user) {
+    const jti = crypto.randomBytes(16).toString('hex');
+    return { token: jwt.sign({ userId: user.id, usuario: user.usuario, perfil: user.perfil, jti }, JWT_SECRET, { expiresIn: JWT_EXP }), jti };
+  }
 
   router.post('/login', authLimiter, async (req, res) => {
     const schema = Joi.object({ usuario: Joi.string().min(1).max(100).required(), senha: Joi.string().min(1).max(200).required() });
@@ -26,9 +40,9 @@ module.exports = function authRoutes({ db, logger, audit, Joi, bcrypt, jwt, user
     }
 
     await usersDb.clearLoginFailures(user.id);
-    const token = jwt.sign({ userId: user.id, usuario: user.usuario, perfil: user.perfil }, JWT_SECRET, { expiresIn: JWT_EXP });
+    const { token } = _signAccess(user);
     await audit(req, 'login', 'usuario', user.id, { usuario: user.usuario, perfil: user.perfil });
-    const accessCookieOpts = { httpOnly: true, sameSite: 'lax', maxAge: 8 * 60 * 60 * 1000 };
+    const accessCookieOpts = { httpOnly: true, sameSite: 'lax', maxAge: _accessCookieMs() };
     if (COOKIE_SECURE) accessCookieOpts.secure = true;
     res.cookie('auth_token', token, accessCookieOpts);
     try { await usersDb.issueRefreshToken(res, user.id, COOKIE_SECURE); } catch (e) { logger.error('issueRefreshToken falhou', { userId: user.id, err: e && e.message }); }
@@ -36,8 +50,12 @@ module.exports = function authRoutes({ db, logger, audit, Joi, bcrypt, jwt, user
   });
 
   router.post('/logout', jwtMiddleware, async (req, res) => {
-    const token = req.cookies && req.cookies.refresh_token;
-    await usersDb.deleteRefreshToken(res, token);
+    // Revogar o access token atual (logout real)
+    if (req.user && req.user.jti && req.user.exp) {
+      revokedTokens.set(req.user.jti, req.user.exp * 1000);
+    }
+    const refreshCookie = req.cookies && req.cookies.refresh_token;
+    await usersDb.deleteRefreshToken(res, refreshCookie);
     res.clearCookie('auth_token');
     return res.json({ ok:true });
   });
@@ -51,8 +69,8 @@ module.exports = function authRoutes({ db, logger, audit, Joi, bcrypt, jwt, user
       const user = await usersDb.findById(info.userId);
       if (!user || !user.ativo) { res.clearCookie('refresh_token'); return res.status(401).json({ ok:false, erro:'Invalid user' }); }
       await usersDb.rotateRefreshToken(res, token, user.id, COOKIE_SECURE);
-      const access = jwt.sign({ userId: user.id, usuario: user.usuario, perfil: user.perfil }, JWT_SECRET, { expiresIn: JWT_EXP });
-      const accessCookieOpts = { httpOnly: true, sameSite: 'lax', maxAge: 8 * 60 * 60 * 1000 };
+      const { token: access } = _signAccess(user);
+      const accessCookieOpts = { httpOnly: true, sameSite: 'lax', maxAge: _accessCookieMs() };
       if (COOKIE_SECURE) accessCookieOpts.secure = true;
       res.cookie('auth_token', access, accessCookieOpts);
       await audit(req, 'token_renovado', 'usuario', user.id, { usuario: user.usuario });

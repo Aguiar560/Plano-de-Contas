@@ -2,8 +2,9 @@
 
 const express = require('express');
 
-module.exports = function recibosRoutes({ db, logger, Joi, readLimiter, writeLimiter, jwtMiddleware, requireRole }) {
+module.exports = function recibosRoutes({ db, logger, Joi, readLimiter, writeLimiter, jwtMiddleware, requireRole, cryptoUtils }) {
   const router = express.Router();
+  const { encrypt, decrypt } = cryptoUtils;
 
   router.post('/recibos', writeLimiter, jwtMiddleware, requireRole('operador'), async (req, res) => {
     if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
@@ -33,7 +34,8 @@ module.exports = function recibosRoutes({ db, logger, Joi, readLimiter, writeLim
              fornecedor_cpf, data, valor, descricao, emitido_por, created_at)
            VALUES (?,?,?,?,?,?,?,?,?,?,NOW())`,
           [numero, ano, value.lancamento_id || null, value.conta_codigo || null,
-           value.fornecedor_nome, value.fornecedor_cpf || null,
+           value.fornecedor_nome,
+           value.fornecedor_cpf ? encrypt(value.fornecedor_cpf) : null,
            value.data, value.valor, value.descricao || null,
            req.user.userId || null]
         );
@@ -66,6 +68,20 @@ module.exports = function recibosRoutes({ db, logger, Joi, readLimiter, writeLim
     }
   });
 
+  router.delete('/recibos/:id', writeLimiter, jwtMiddleware, requireRole('admin'), async (req, res) => {
+    if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ ok:false, erro:'ID inválido' });
+    try {
+      const [result] = await db.pool.query('DELETE FROM recibo WHERE id = ?', [id]);
+      if (result.affectedRows === 0) return res.status(404).json({ ok:false, erro:'Recibo não encontrado' });
+      res.json({ ok:true });
+    } catch(e) {
+      logger.error('DELETE /api/recibos/:id falhou', { err: e && e.message });
+      res.status(500).json({ ok:false, erro:'Erro ao excluir recibo' });
+    }
+  });
+
   router.get('/recibos', readLimiter, jwtMiddleware, requireRole('visualizador'), async (req, res) => {
     if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
     const ano   = parseInt(req.query.ano,   10) || new Date().getFullYear();
@@ -75,9 +91,10 @@ module.exports = function recibosRoutes({ db, logger, Joi, readLimiter, writeLim
     const offset = (page - 1) * limit;
 
     try {
+      // Busca por CPF usa apenas fornecedor_nome (CPF está criptografado no banco)
       let where = 'WHERE ano = ?';
       const params = [ano];
-      if (busca) { where += ' AND (fornecedor_nome LIKE ? OR fornecedor_cpf LIKE ?)'; params.push('%'+busca+'%', '%'+busca+'%'); }
+      if (busca) { where += ' AND fornecedor_nome LIKE ?'; params.push('%'+busca+'%'); }
 
       const [[{ total }]] = await db.pool.query(`SELECT COUNT(*) AS total FROM recibo ${where}`, params);
       const rows = await db.query(
@@ -86,7 +103,9 @@ module.exports = function recibosRoutes({ db, logger, Joi, readLimiter, writeLim
          FROM recibo ${where} ORDER BY numero DESC LIMIT ? OFFSET ?`,
         [...params, limit, offset]
       );
-      res.json({ ok:true, total, page, limit, recibos: rows });
+      // Descriptografar CPF para exibição
+      const recibos = rows.map(r => ({ ...r, fornecedor_cpf: decrypt(r.fornecedor_cpf) }));
+      res.json({ ok:true, total, page, limit, recibos });
     } catch(e) {
       logger.error('GET /api/recibos falhou', { err: e && e.message });
       res.status(500).json({ ok:false, erro:'Erro ao listar recibos' });
