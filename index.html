@@ -180,6 +180,9 @@
     </div>
   </aside>
 
+  <!-- Sidebar overlay backdrop (mobile) -->
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
+
   <!-- ─────────────────────────────────────────────────────────────────
        MAIN AREA (topbar + content)
   ───────────────────────────────────────────────────────────────────── -->
@@ -188,6 +191,9 @@
     <!-- TOPBAR -->
     <header class="topbar">
       <div class="topbar-left">
+        <button class="btn-hamburger" id="btnHamburger" aria-label="Abrir menu" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
         <h1 class="topbar-title" id="topbarTitle">Dashboard</h1>
       </div>
       <div class="topbar-right">
@@ -1606,5 +1612,42 @@
 <script src="client/search.js" charset="utf-8"></script>
 <script src="client/ofx-import.js" charset="utf-8"></script>
 <script src="client/login.js" charset="utf-8"></script>
+
+  <!-- Mobile sidebar toggle -->
+  <script>
+  (function () {
+    var hamburger = document.getElementById('btnHamburger');
+    var overlay   = document.getElementById('sidebarOverlay');
+    var sidebar   = document.getElementById('sidebar');
+
+    function openSidebar() {
+      document.body.classList.add('sidebar-open');
+      hamburger.setAttribute('aria-expanded', 'true');
+    }
+    function closeSidebar() {
+      document.body.classList.remove('sidebar-open');
+      hamburger.setAttribute('aria-expanded', 'false');
+    }
+
+    hamburger.addEventListener('click', function () {
+      document.body.classList.contains('sidebar-open') ? closeSidebar() : openSidebar();
+    });
+    overlay.addEventListener('click', closeSidebar);
+
+    sidebar.querySelectorAll('.sidebar-item').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (window.innerWidth <= 768) closeSidebar();
+      });
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeSidebar();
+    });
+
+    window.addEventListener('resize', function () {
+      if (window.innerWidth > 768) closeSidebar();
+    });
+  })();
+  </script>
 </body>
 </html>

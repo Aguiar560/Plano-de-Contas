@@ -3051,3 +3051,186 @@ kbd {
 .btn-dark-toggle .icon-sun  { display: none; }
 [data-theme="dark"] .btn-dark-toggle .icon-moon { display: none; }
 [data-theme="dark"] .btn-dark-toggle .icon-sun  { display: block; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — hamburger + sidebar overlay + layouts
+══════════════════════════════════════════════════════════════════════ */
+
+/* ── Hamburger button (hidden on desktop) ── */
+.btn-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  color: var(--c-text);
+  transition: background .15s;
+}
+.btn-hamburger:hover { background: var(--c-primary-lt); }
+.btn-hamburger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 2px;
+  transition: transform .25s cubic-bezier(.4,0,.2,1), opacity .2s;
+}
+body.sidebar-open .btn-hamburger span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+body.sidebar-open .btn-hamburger span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+body.sidebar-open .btn-hamburger span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* ── Sidebar overlay backdrop ── */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 199;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: fadeInOverlay .2s ease;
+}
+@keyframes fadeInOverlay {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   TABLET  ≤ 1024px
+══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .charts-row { grid-template-columns: 1fr; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   MOBILE  ≤ 768px
+══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── Show hamburger ── */
+  .btn-hamburger { display: flex; }
+
+  /* ── Sidebar: fixed slide-in from left ── */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 200;
+    transform: translateX(-100%);
+    transition: transform .28s cubic-bezier(.4,0,.2,1);
+    width: 270px;
+    box-shadow: 4px 0 32px rgba(0,0,0,.22);
+  }
+  body.sidebar-open .sidebar { transform: translateX(0); }
+  body.sidebar-open .sidebar-overlay { display: block; }
+  body.sidebar-open { overflow: hidden; }
+
+  /* ── App shell: single column, no fixed sidebar space ── */
+  .app-shell { display: block; height: auto; min-height: 100vh; overflow: visible; }
+  .app-right  { width: 100%; overflow-x: hidden; }
+
+  /* ── Topbar ── */
+  .topbar { height: 54px; padding: 0 10px; gap: 6px; }
+  .topbar-left { gap: 6px; }
+  .topbar-title { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+  .topbar-right { gap: 4px; }
+  .search-palette-kbd { display: none; }
+
+  /* ── Minimum 44px touch targets ── */
+  .btn { min-height: 44px; }
+  .btn-sm { min-height: 40px; padding: 0 12px; font-size: 13px; }
+  .sidebar-item { min-height: 44px; }
+
+  /* ── KPI grid: 1 column ── */
+  .kpi-grid { grid-template-columns: 1fr; gap: 10px; }
+  .kpi-card { padding: 14px 16px; }
+
+  /* ── Charts: 1 column ── */
+  .charts-row { grid-template-columns: 1fr; gap: 12px; }
+  .chart-card { padding: 14px; }
+
+  /* ── Content padding ── */
+  .app-content, .view-content, .content-area { padding: 12px; }
+
+  /* ── Section headers: stack vertically ── */
+  .view-header, .section-header, .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .view-header .btn-group,
+  .section-header .btn-group,
+  .page-header .btn-group { width: 100%; flex-wrap: wrap; }
+  .view-header .btn-group .btn,
+  .section-header .btn-group .btn { flex: 1; justify-content: center; min-width: 0; }
+
+  /* ── Tree split pane: single column ── */
+  .split-pane, .tree-split { flex-direction: column; }
+  .split-pane > * { width: 100% !important; flex: none !important; }
+  .split-handle, .split-divider { display: none; }
+
+  /* ── Tables: horizontal scroll container ── */
+  .table-wrapper, .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { min-width: 500px; }
+  th, td { padding: 8px 10px; font-size: 12px; }
+
+  /* ── Modals: bottom-sheet on mobile ── */
+  .modal-overlay { align-items: flex-end; padding: 0; }
+  .modal,
+  .modal-xs, .modal-sm, .modal-md, .modal-lg {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 18px 18px 0 0;
+    max-height: 90vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal-header { padding: 16px 16px 12px; }
+  .modal-body   { padding: 14px 16px; }
+  .modal-footer { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
+  .modal-footer .btn { flex: 1; justify-content: center; min-width: 0; }
+
+  /* ── Form grids: single column ── */
+  .form-row, .form-grid-2, .form-grid-3 {
+    grid-template-columns: 1fr !important;
+    flex-direction: column;
+  }
+
+  /* ── Balance / company pill in topbar ── */
+  .header-saldo #totalSaldoHeader { font-size: 13px; }
+  .company-pill-name { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ── Toolbar / filter bar ── */
+  .toolbar, .filter-bar { flex-wrap: wrap; gap: 8px; }
+
+  /* ── Recibo / receipt layout ── */
+  .recibo-grid, .receipt-layout { grid-template-columns: 1fr; }
+
+  /* ── Report filters ── */
+  .report-filters { flex-direction: column; }
+  .report-filters > * { width: 100%; }
+
+  /* ── Settings / config ── */
+  .config-grid, .settings-grid { grid-template-columns: 1fr; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   SMALL MOBILE  ≤ 480px
+══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .topbar-title { font-size: 14px; max-width: 120px; }
+  .kpi-card-value { font-size: 22px; }
+  .kpi-card-label { font-size: 11px; }
+  .modal, .modal-xs, .modal-sm, .modal-md, .modal-lg { max-height: 94vh; }
+  #btnExportXML { display: none !important; }
+}
