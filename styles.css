@@ -3265,7 +3265,7 @@ body.sidebar-open .btn-hamburger span:nth-child(3) { transform: translateY(-7px)
     border-bottom: 1px solid var(--c-border);
   }
   .tree-container {
-    max-height: 52vh;
+    max-height: 38vh;
   }
   .panel-splitter { display: none !important; }
   .panel-report { padding: 12px; }
