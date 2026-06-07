@@ -131,8 +131,12 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
 
   router.get('/users/:id/permissions', jwtMiddleware, requireAdmin, async (req, res) => {
     const id = +req.params.id;
+    const empresaId = req.user.empresaId;
     if (!id) return res.status(400).json({ ok:false, erro:'ID inválido' });
     try {
+      const u = await usersDb.findById(id);
+      if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
+      if (empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Sem permissão' });
       const perms = await usersDb.getUserPermissions(id);
       res.json({ ok:true, permissions: perms || {} });
     } catch(e) { res.status(500).json({ ok:false, erro:'Erro ao ler permissões' }); }
@@ -140,6 +144,7 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
 
   router.put('/users/:id/permissions', jwtMiddleware, requireAdmin, async (req, res) => {
     const id = +req.params.id;
+    const empresaId = req.user.empresaId;
     if (!id) return res.status(400).json({ ok:false, erro:'ID inválido' });
     const schema = Joi.object().pattern(Joi.string(), Joi.boolean()).required();
     const { error, value } = schema.validate(req.body);
@@ -147,6 +152,7 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
     try {
       const u = await usersDb.findById(id);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
+      if (empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Sem permissão' });
       await usersDb.saveUserPermissions(id, value);
       await audit(req, 'update_permissions', 'usuario', id, { targetUsuario: u.usuario, permissions: value });
       res.json({ ok:true });

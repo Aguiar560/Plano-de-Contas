@@ -203,7 +203,7 @@ module.exports = function lancamentosRoutes({ db, logger, audit, Joi, readLimite
         [empresaId, id]
       );
       if (!rows.length) return res.status(404).json({ ok:false, erro:'Lançamento não encontrado' });
-      await db.execute('UPDATE lancamento SET deleted_at = NOW() WHERE id = ?', [id]);
+      await db.execute('UPDATE lancamento SET deleted_at = NOW() WHERE id = ? AND empresa_id = ?', [id, empresaId]);
       await audit(req, 'lancamento_deletado', 'lancamento', id, { id });
       res.json({ ok:true, id });
     } catch(e){ logger.error('DELETE /api/lancamentos falhou', { err: e && e.message, id: req.params.id }); res.status(500).json({ ok:false, erro:'DB error' }); }
