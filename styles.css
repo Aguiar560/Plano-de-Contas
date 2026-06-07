@@ -3325,6 +3325,10 @@ body.sidebar-open .btn-hamburger span:nth-child(3) { transform: translateY(-7px)
   .orc-progress-header { font-size: 11px; }
   .orc-alerta { font-size: 11px; padding: 6px 10px; }
 
+  /* Lançamentos: libera scroll aninhado — o scroll da .view cobre tudo */
+  .conta-detail { overflow: visible; }
+  .lanc-list { overflow: visible; flex: none; height: auto; }
+
   /* Lançamentos section header */
   .detail-lanc-header { flex-wrap: wrap; gap: 6px; padding: 8px 0; }
   .detail-lanc-header h3 { font-size: 13px; }
