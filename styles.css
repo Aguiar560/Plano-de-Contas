@@ -3202,6 +3202,8 @@ body.sidebar-open .btn-hamburger span:nth-child(3) { transform: translateY(-7px)
   .topbar-title { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
   .topbar-right { gap: 4px; }
   .search-palette-kbd { display: none; }
+  /* Esconde botões do plano de contas do topbar no mobile — ficam dentro da view */
+  #btnExportXML, #btnAbrirImportOFX { display: none !important; }
 
   /* ── Minimum 44px touch targets ── */
   .btn { min-height: 44px; }
@@ -3285,7 +3287,7 @@ body.sidebar-open .btn-hamburger span:nth-child(3) { transform: translateY(-7px)
   ══════════════════════════════════════════════════════════════════ */
 
   /* Stack tree + detail vertically */
-  .view-flex.active { flex-direction: column; height: 100%; }
+  .view-flex.active { flex-direction: column; }
   .panel-tree {
     flex: none;
     width: 100% !important;
@@ -3388,5 +3390,5 @@ body.sidebar-open .btn-hamburger span:nth-child(3) { transform: translateY(-7px)
   .kpi-card-value { font-size: 22px; }
   .kpi-card-label { font-size: 11px; }
   .modal, .modal-xs, .modal-sm, .modal-md, .modal-lg { max-height: 94vh; }
-  #btnExportXML { display: none !important; }
+  /* #btnExportXML já oculto via regra 768px */
 }
