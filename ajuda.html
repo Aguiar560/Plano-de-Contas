@@ -1,0 +1,1845 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Central de Ajuda — FinanceiroApp</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --c-bg:          #f1f5f9;
+      --c-surface:     #ffffff;
+      --c-border:      #e2e8f0;
+      --c-primary:     #2563eb;
+      --c-primary-h:   #1d4ed8;
+      --c-primary-lt:  #eff6ff;
+      --c-success:     #10b981;
+      --c-success-lt:  #ecfdf5;
+      --c-danger:      #ef4444;
+      --c-danger-lt:   #fef2f2;
+      --c-warning:     #f59e0b;
+      --c-warning-lt:  #fffbeb;
+      --c-text:        #1e293b;
+      --c-text-muted:  #64748b;
+      --c-text-faint:  #94a3b8;
+      --sidebar-bg:    #0f172a;
+      --sidebar-text:  #94a3b8;
+      --sidebar-active:#60a5fa;
+      --font: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      --r-sm: 6px; --r-md: 10px; --r-lg: 14px;
+      --s-sm: 0 1px 3px rgba(0,0,0,.08); --s-md: 0 4px 12px rgba(0,0,0,.10);
+    }
+
+    html, body {
+      height: 100%; font-family: var(--font); color: var(--c-text);
+      background: var(--c-bg); font-size: 15px; line-height: 1.6;
+    }
+
+    /* ── LAYOUT ── */
+    .help-shell { display: flex; height: 100vh; }
+
+    /* ── SIDEBAR ── */
+    .help-nav {
+      width: 280px; min-width: 280px; background: var(--sidebar-bg);
+      color: var(--sidebar-text); display: flex; flex-direction: column;
+      overflow-y: auto; position: sticky; top: 0; height: 100vh;
+    }
+    .help-nav::-webkit-scrollbar { width: 4px; }
+    .help-nav::-webkit-scrollbar-track { background: transparent; }
+    .help-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 2px; }
+
+    .help-nav-header {
+      padding: 24px 20px 16px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .help-nav-logo {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+    }
+    .help-nav-logo-icon {
+      width: 36px; height: 36px; background: var(--c-primary); border-radius: 10px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .help-nav-title { font-size: 15px; font-weight: 700; color: #f1f5f9; }
+    .help-nav-subtitle { font-size: 11px; color: var(--sidebar-text); margin-top: 2px; }
+
+    .help-nav-search {
+      padding: 12px 16px 0;
+    }
+    .help-nav-search input {
+      width: 100%; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+      border-radius: var(--r-sm); padding: 7px 10px 7px 32px; font-size: 13px;
+      color: #f1f5f9; font-family: var(--font); outline: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: 10px center;
+    }
+    .help-nav-search input::placeholder { color: #475569; }
+    .help-nav-search input:focus { border-color: var(--c-primary); background-color: rgba(37,99,235,.1); }
+
+    .help-nav-section { padding: 16px 0 4px; }
+    .help-nav-section-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: #475569; padding: 0 20px 6px;
+    }
+    .help-nav-item {
+      display: flex; align-items: center; gap: 9px; padding: 8px 20px;
+      font-size: 13px; color: var(--sidebar-text); cursor: pointer;
+      text-decoration: none; border-left: 2px solid transparent;
+      transition: background .15s, color .15s;
+    }
+    .help-nav-item:hover { background: rgba(255,255,255,.05); color: #e2e8f0; }
+    .help-nav-item.active {
+      background: rgba(37,99,235,.15); color: var(--sidebar-active);
+      border-left-color: var(--sidebar-active);
+    }
+    .help-nav-item svg { flex-shrink: 0; opacity: .7; }
+    .help-nav-item.active svg { opacity: 1; }
+    .help-nav-badge {
+      margin-left: auto; background: var(--c-primary); color: #fff;
+      font-size: 10px; font-weight: 700; padding: 1px 6px;
+      border-radius: 10px;
+    }
+
+    /* ── MAIN CONTENT ── */
+    .help-main {
+      flex: 1; overflow-y: auto; padding: 0;
+    }
+    .help-main::-webkit-scrollbar { width: 6px; }
+    .help-main::-webkit-scrollbar-track { background: var(--c-bg); }
+    .help-main::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+    .help-topbar {
+      background: var(--c-surface); border-bottom: 1px solid var(--c-border);
+      padding: 0 40px; height: 60px; display: flex; align-items: center;
+      justify-content: space-between; position: sticky; top: 0; z-index: 10;
+      box-shadow: var(--s-sm);
+    }
+    .help-topbar-title { font-size: 16px; font-weight: 600; color: var(--c-text); }
+    .help-topbar-back {
+      display: flex; align-items: center; gap: 6px; font-size: 13px;
+      color: var(--c-primary); text-decoration: none; font-weight: 500;
+    }
+    .help-topbar-back:hover { color: var(--c-primary-h); }
+
+    .help-content { padding: 40px; max-width: 900px; }
+
+    /* ── HERO ── */
+    .help-hero {
+      background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%);
+      border-radius: var(--r-lg); padding: 48px 40px; color: #fff;
+      margin-bottom: 40px; position: relative; overflow: hidden;
+    }
+    .help-hero::before {
+      content: ''; position: absolute; inset: 0;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Ccircle cx='30' cy='30' r='25' fill='none' stroke='rgba(255,255,255,.05)' stroke-width='1'/%3E%3C/svg%3E") repeat;
+    }
+    .help-hero-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,.2); backdrop-filter: blur(8px);
+      border-radius: 20px; padding: 4px 12px; font-size: 12px;
+      font-weight: 600; color: #fff; margin-bottom: 16px;
+    }
+    .help-hero h1 { font-size: 32px; font-weight: 800; margin-bottom: 12px; }
+    .help-hero p { font-size: 16px; opacity: .85; max-width: 600px; line-height: 1.7; }
+    .help-hero-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 28px;
+    }
+    .help-hero-stat {
+      background: rgba(255,255,255,.15); backdrop-filter: blur(8px);
+      border-radius: var(--r-md); padding: 16px; text-align: center;
+      border: 1px solid rgba(255,255,255,.2);
+    }
+    .help-hero-stat-num { font-size: 28px; font-weight: 800; }
+    .help-hero-stat-label { font-size: 12px; opacity: .8; margin-top: 2px; }
+
+    /* ── SECTIONS ── */
+    .help-section {
+      background: var(--c-surface); border-radius: var(--r-lg);
+      border: 1px solid var(--c-border); margin-bottom: 32px;
+      overflow: hidden; box-shadow: var(--s-sm);
+    }
+    .help-section-header {
+      padding: 24px 28px; border-bottom: 1px solid var(--c-border);
+      display: flex; align-items: center; gap: 14px;
+    }
+    .help-section-icon {
+      width: 42px; height: 42px; border-radius: var(--r-md);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .help-section-icon.blue   { background: #eff6ff; color: #2563eb; }
+    .help-section-icon.green  { background: #ecfdf5; color: #10b981; }
+    .help-section-icon.orange { background: #fff7ed; color: #f97316; }
+    .help-section-icon.purple { background: #f5f3ff; color: #8b5cf6; }
+    .help-section-icon.teal   { background: #f0fdfa; color: #14b8a6; }
+    .help-section-icon.yellow { background: #fffbeb; color: #f59e0b; }
+    .help-section-icon.red    { background: #fef2f2; color: #ef4444; }
+    .help-section-icon.slate  { background: #f8fafc; color: #64748b; }
+    .help-section-icon.pink   { background: #fdf2f8; color: #ec4899; }
+
+    .help-section-meta h2 { font-size: 18px; font-weight: 700; }
+    .help-section-meta p  { font-size: 13px; color: var(--c-text-muted); margin-top: 2px; }
+    .help-section-body { padding: 28px; }
+
+    /* ── STEPS ── */
+    .steps { display: flex; flex-direction: column; gap: 0; }
+    .step {
+      display: flex; gap: 16px; padding: 16px 0;
+      border-bottom: 1px solid var(--c-border);
+    }
+    .step:last-child { border-bottom: none; padding-bottom: 0; }
+    .step:first-child { padding-top: 0; }
+    .step-num {
+      width: 28px; height: 28px; background: var(--c-primary); color: #fff;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; flex-shrink: 0; margin-top: 2px;
+    }
+    .step-body { flex: 1; }
+    .step-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+    .step-desc { font-size: 13px; color: var(--c-text-muted); line-height: 1.6; }
+
+    /* ── CALLOUTS ── */
+    .callout {
+      border-radius: var(--r-md); padding: 14px 16px;
+      display: flex; gap: 10px; margin: 16px 0; font-size: 13px;
+    }
+    .callout.tip    { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+    .callout.warn   { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+    .callout.danger { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .callout.info   { background: #f0fdfa; border: 1px solid #a7f3d0; color: #064e3b; }
+    .callout-icon { flex-shrink: 0; margin-top: 1px; }
+    .callout strong { display: block; font-weight: 600; margin-bottom: 2px; }
+
+    /* ── FEATURE GRID ── */
+    .feature-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .feature-card {
+      background: var(--c-bg); border: 1px solid var(--c-border);
+      border-radius: var(--r-md); padding: 16px 18px;
+    }
+    .feature-card-title {
+      font-size: 13px; font-weight: 600; margin-bottom: 6px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .feature-card-title span {
+      width: 24px; height: 24px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .feature-card ul { list-style: none; }
+    .feature-card li {
+      font-size: 12px; color: var(--c-text-muted); padding: 3px 0;
+      display: flex; align-items: flex-start; gap: 6px;
+    }
+    .feature-card li::before { content: '›'; color: var(--c-primary); font-weight: 700; }
+
+    /* ── KEYBOARD SHORTCUTS ── */
+    .shortcuts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .shortcut-item {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--c-bg); border: 1px solid var(--c-border);
+      border-radius: var(--r-sm); padding: 10px 14px;
+    }
+    .shortcut-label { font-size: 13px; color: var(--c-text); }
+    .shortcut-keys { display: flex; gap: 4px; }
+    kbd {
+      background: var(--c-surface); border: 1px solid var(--c-border);
+      border-bottom: 2px solid #cbd5e1; border-radius: 4px;
+      padding: 2px 7px; font-size: 11px; font-weight: 600;
+      font-family: var(--font); color: var(--c-text);
+    }
+
+    /* ── TABLE ── */
+    .help-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .help-table th {
+      background: var(--c-bg); border: 1px solid var(--c-border);
+      padding: 10px 14px; text-align: left; font-weight: 600; font-size: 12px;
+      color: var(--c-text-muted); text-transform: uppercase; letter-spacing: .04em;
+    }
+    .help-table td {
+      border: 1px solid var(--c-border); padding: 10px 14px;
+      vertical-align: top;
+    }
+    .help-table tr:hover td { background: var(--c-bg); }
+
+    /* ── BADGE / TAG ── */
+    .tag {
+      display: inline-flex; align-items: center; border-radius: 4px;
+      padding: 2px 8px; font-size: 11px; font-weight: 600;
+    }
+    .tag.blue   { background: #eff6ff; color: #2563eb; }
+    .tag.green  { background: #ecfdf5; color: #059669; }
+    .tag.red    { background: #fef2f2; color: #dc2626; }
+    .tag.yellow { background: #fffbeb; color: #d97706; }
+    .tag.purple { background: #f5f3ff; color: #7c3aed; }
+
+    /* ── ROLE TABLE ── */
+    .role-dot {
+      width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px;
+    }
+    .check { color: var(--c-success); font-size: 16px; }
+    .cross { color: var(--c-danger); font-size: 16px; }
+
+    /* ── SCREEN DIAGRAM ── */
+    .screen-diagram {
+      background: var(--c-bg); border: 2px dashed var(--c-border);
+      border-radius: var(--r-md); padding: 20px; margin: 16px 0;
+      font-size: 12px; color: var(--c-text-muted); font-family: monospace;
+      line-height: 1.8;
+    }
+    .screen-diagram .zone {
+      background: var(--c-surface); border: 1px solid var(--c-border);
+      border-radius: 4px; padding: 8px 12px; margin: 6px 0;
+    }
+    .screen-diagram .zone-label {
+      font-weight: 700; font-size: 10px; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--c-primary); margin-bottom: 4px;
+    }
+
+    /* ── FLOW ── */
+    .flow { display: flex; align-items: flex-start; gap: 0; flex-wrap: wrap; margin: 16px 0; }
+    .flow-step {
+      display: flex; align-items: center; gap: 0;
+    }
+    .flow-box {
+      background: var(--c-primary-lt); border: 1px solid #bfdbfe;
+      border-radius: var(--r-sm); padding: 8px 14px; font-size: 12px;
+      font-weight: 500; color: var(--c-primary); text-align: center;
+    }
+    .flow-arrow {
+      font-size: 18px; color: var(--c-text-faint); padding: 0 8px;
+      line-height: 1;
+    }
+
+    /* ── PILL MENU ── */
+    .toc-pills {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 32px;
+    }
+    .toc-pill {
+      background: var(--c-surface); border: 1px solid var(--c-border);
+      border-radius: 20px; padding: 6px 14px; font-size: 12px;
+      font-weight: 500; color: var(--c-text-muted); text-decoration: none;
+      cursor: pointer; transition: all .15s;
+    }
+    .toc-pill:hover { border-color: var(--c-primary); color: var(--c-primary); }
+
+    /* ── DIVIDER ── */
+    .section-divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 28px 0 20px; color: var(--c-text-muted); font-size: 11px;
+      font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+    }
+    .section-divider::before, .section-divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--c-border);
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .help-nav { display: none; }
+      .help-content { padding: 20px; }
+      .help-hero { padding: 28px 20px; }
+      .help-hero h1 { font-size: 22px; }
+      .help-hero-grid { grid-template-columns: 1fr; }
+      .feature-grid { grid-template-columns: 1fr; }
+      .shortcuts-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── PRINT ── */
+    @media print {
+      .help-nav { display: none; }
+      .help-topbar { display: none; }
+      .help-content { padding: 20px; max-width: 100%; }
+    }
+
+    /* scroll behavior */
+    html { scroll-behavior: smooth; }
+    :target { scroll-margin-top: 80px; }
+
+    /* highlight search */
+    .search-hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div class="help-shell">
+
+  <!-- ── SIDEBAR NAV ── -->
+  <nav class="help-nav" id="helpNav">
+    <div class="help-nav-header">
+      <div class="help-nav-logo">
+        <div class="help-nav-logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <div>
+          <div class="help-nav-title">FinanceiroApp</div>
+          <div class="help-nav-subtitle">Central de Ajuda</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="help-nav-search">
+      <input type="text" placeholder="Buscar na ajuda…" id="navSearch" />
+    </div>
+
+    <div class="help-nav-section">
+      <div class="help-nav-section-label">Primeiros Passos</div>
+      <a class="help-nav-item" href="#inicio">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Visão Geral
+      </a>
+      <a class="help-nav-item" href="#login">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Login e Acesso
+      </a>
+      <a class="help-nav-item" href="#perfis">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Perfis e Permissões
+      </a>
+    </div>
+
+    <div class="help-nav-section">
+      <div class="help-nav-section-label">Módulos do Sistema</div>
+      <a class="help-nav-item" href="#dashboard">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </a>
+      <a class="help-nav-item" href="#plano">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Plano de Contas
+      </a>
+      <a class="help-nav-item" href="#lancamentos">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Lançamentos
+      </a>
+      <a class="help-nav-item" href="#fornecedores">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Fornecedores
+      </a>
+      <a class="help-nav-item" href="#recibos">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Recibo de Autônomo
+      </a>
+      <a class="help-nav-item" href="#relatorios">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Relatórios
+      </a>
+      <a class="help-nav-item" href="#ofx">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+        Importação OFX
+      </a>
+      <a class="help-nav-item" href="#busca">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Busca Global
+      </a>
+    </div>
+
+    <div class="help-nav-section">
+      <div class="help-nav-section-label">Administração</div>
+      <a class="help-nav-item" href="#configuracoes">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        Configurações
+      </a>
+      <a class="help-nav-item" href="#usuarios">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+        Gerenciar Usuários
+      </a>
+      <a class="help-nav-item" href="#auditoria">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Logs de Auditoria
+      </a>
+    </div>
+
+    <div class="help-nav-section">
+      <div class="help-nav-section-label">Referência</div>
+      <a class="help-nav-item" href="#atalhos">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/></svg>
+        Atalhos de Teclado
+      </a>
+      <a class="help-nav-item" href="#glossario">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Glossário
+      </a>
+    </div>
+  </nav>
+
+  <!-- ── MAIN ── -->
+  <main class="help-main" id="helpMain">
+    <div class="help-topbar">
+      <span class="help-topbar-title">Central de Ajuda</span>
+      <a class="help-topbar-back" href="index.html">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        Voltar ao Sistema
+      </a>
+    </div>
+
+    <div class="help-content" id="helpContent">
+
+      <!-- ═══════════════════════════════════════════════
+           HERO
+      ═══════════════════════════════════════════════ -->
+      <div class="help-hero" id="inicio">
+        <div class="help-hero-badge">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+          Guia Completo para Novos Usuários
+        </div>
+        <h1>Como usar o FinanceiroApp</h1>
+        <p>Este guia cobre todas as funcionalidades do sistema — do login até a geração de relatórios. Siga os passos em ordem ou acesse diretamente o módulo que precisa pelo menu lateral.</p>
+        <div class="help-hero-grid">
+          <div class="help-hero-stat">
+            <div class="help-hero-stat-num">8</div>
+            <div class="help-hero-stat-label">Módulos</div>
+          </div>
+          <div class="help-hero-stat">
+            <div class="help-hero-stat-num">4</div>
+            <div class="help-hero-stat-label">Perfis de Acesso</div>
+          </div>
+          <div class="help-hero-stat">
+            <div class="help-hero-stat-num">15+</div>
+            <div class="help-hero-stat-label">Atalhos de Teclado</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TOC Pills -->
+      <div class="toc-pills">
+        <a class="toc-pill" href="#login">Login</a>
+        <a class="toc-pill" href="#perfis">Perfis</a>
+        <a class="toc-pill" href="#dashboard">Dashboard</a>
+        <a class="toc-pill" href="#plano">Plano de Contas</a>
+        <a class="toc-pill" href="#lancamentos">Lançamentos</a>
+        <a class="toc-pill" href="#fornecedores">Fornecedores</a>
+        <a class="toc-pill" href="#recibos">Recibos RPA</a>
+        <a class="toc-pill" href="#relatorios">Relatórios</a>
+        <a class="toc-pill" href="#ofx">Importar OFX</a>
+        <a class="toc-pill" href="#atalhos">Atalhos</a>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════════
+           LOGIN
+      ═══════════════════════════════════════════════ -->
+      <div class="help-section" id="login">
+        <div class="help-section-header">
+          <div class="help-section-icon blue">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <div class="help-section-meta">
+            <h2>Login e Acesso ao Sistema</h2>
+            <p>Como entrar no sistema pela primeira vez e gerenciar sua sessão</p>
+          </div>
+        </div>
+        <div class="help-section-body">
+
+          <div class="callout tip">
+            <div class="callout-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+            </div>
+            <div>
+              <strong>Primeiro acesso</strong>
+              Suas credenciais (usuário e senha) são criadas pelo administrador do sistema. Se você não tiver acesso, entre em contato com o responsável pela associação.
+            </div>
+          </div>
+
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Abra o sistema no navegador</div>
+                <div class="step-desc">Acesse o endereço fornecido pelo seu administrador (ex: <code>http://localhost:3000</code>). A tela de login aparecerá automaticamente.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Digite seu usuário e senha</div>
+                <div class="step-desc">No campo <strong>Usuário</strong>, informe o nome de usuário cadastrado. No campo <strong>Senha</strong>, informe sua senha. Use o ícone de olho (👁) para mostrar ou ocultar a senha digitada.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">Marque "Lembrar-me" (opcional)</div>
+                <div class="step-desc">Se você é o único usuário deste computador, marque a opção <strong>Lembrar-me</strong> para que o sistema pré-preencha seu nome de usuário nas próximas visitas.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">Clique em "Entrar"</div>
+                <div class="step-desc">Após clicar, o sistema verifica suas credenciais. Se corretas, você é redirecionado ao <strong>Dashboard</strong>. Em caso de erro, uma mensagem em vermelho indicará o problema.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">5</div>
+              <div class="step-body">
+                <div class="step-title">Sessão automática</div>
+                <div class="step-desc">Sua sessão dura <strong>8 horas</strong>. Após esse período, o sistema solicitará login novamente. Para sair manualmente, clique no ícone do usuário no canto superior direito e selecione <strong>Sair</strong>.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="callout warn">
+            <div class="callout-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div>
+              <strong>Segurança</strong>
+              Após <strong>10 tentativas incorretas</strong> em 1 minuto, o acesso é bloqueado temporariamente. Se esquecer sua senha, solicite redefinição ao administrador.
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════════
+           PERFIS
+      ═══════════════════════════════════════════════ -->
+      <div class="help-section" id="perfis">
+        <div class="help-section-header">
+          <div class="help-section-icon purple">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <div class="help-section-meta">
+            <h2>Perfis de Acesso e Permissões</h2>
+            <p>Entenda o que cada perfil pode fazer no sistema</p>
+          </div>
+        </div>
+        <div class="help-section-body">
+
+          <p style="font-size:13px;color:var(--c-text-muted);margin-bottom:16px">O sistema possui 4 perfis de acesso. Cada usuário é associado a um perfil pelo administrador.</p>
+
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Perfil</th>
+                <th>Ver dados</th>
+                <th>Criar/Editar</th>
+                <th>Excluir</th>
+                <th>Usuários</th>
+                <th>Configurações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="tag red">Admin</span></td>
+                <td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td>
+              </tr>
+              <tr>
+                <td><span class="tag purple">Gerente</span></td>
+                <td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td>
+              </tr>
+              <tr>
+                <td><span class="tag blue">Operador</span></td>
+                <td class="check">✓</td><td class="check">✓ (lançamentos)</td><td class="cross">✗</td><td class="cross">✗</td><td class="cross">✗</td>
+              </tr>
+              <tr>
+                <td><span class="tag yellow">Visualizador</span></td>
+                <td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td><td class="cross">✗</td><td class="cross">✗</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="callout info" style="margin-top:16px">
+            <div class="callout-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+            </div>
+            <div>Seu perfil atual aparece no canto superior direito da tela, ao lado do seu nome. Se precisar de mais permissões para realizar uma tarefa, entre em contato com o administrador.</div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════════
+           DASHBOARD
+      ═══════════════════════════════════════════════ -->
+      <div class="help-section" id="dashboard">
+        <div class="help-section-header">
+          <div class="help-section-icon green">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          </div>
+          <div class="help-section-meta">
+            <h2>Dashboard — Visão Geral Financeira</h2>
+            <p>Tela inicial com indicadores e resumo do período selecionado</p>
+          </div>
+        </div>
+        <div class="help-section-body">
+
+          <div class="screen-diagram">
+            <div style="font-weight:700;color:var(--c-text);margin-bottom:8px">Layout do Dashboard</div>
+            <div class="zone">
+              <div class="zone-label">Seletor de Período</div>
+              [Este mês] [Trimestre] [Este ano]  ou  [Data início → Data fim] [Aplicar]
+            </div>
+            <div class="zone">
+              <div class="zone-label">KPIs (4 cartões)</div>
+              💚 Total Entradas &nbsp;|&nbsp; 🔴 Total Saídas &nbsp;|&nbsp; ⚖️ Saldo Líquido &nbsp;|&nbsp; 📊 Orçamento Utilizado
+            </div>
+            <div class="zone">
+              <div class="zone-label">Gráficos</div>
+              📈 Evolução Mensal (linha) &nbsp;&nbsp;&nbsp; 🥧 Distribuição de Saídas (pizza)
+            </div>
+            <div class="zone">
+              <div class="zone-label">Lançamentos Recentes</div>
+              Tabela: Data | Conta | Descrição | Tipo | Valor
+            </div>
+          </div>
+
+          <div class="section-divider">Como usar</div>
+
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Selecione o período</div>
+                <div class="step-desc">Use os botões de atalho (<strong>Este mês</strong>, <strong>Trimestre</strong>, <strong>Este ano</strong>) ou preencha manualmente as datas nos campos de início e fim. Clique em <strong>Aplicar</strong> para filtrar.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Leia os indicadores (KPIs)</div>
+                <div class="step-desc">
+                  Os 4 cartões mostram um resumo do período:
+                  <ul style="margin-top:8px;padding-left:16px;font-size:13px;color:var(--c-text-muted)">
+                    <li><strong>Total Entradas</strong> — soma de todos os créditos</li>
+                    <li><strong>Total Saídas</strong> — soma de todos os débitos</li>
+                    <li><strong>Saldo Líquido</strong> — entradas menos saídas</li>
+                    <li><strong>Orçamento Utilizado</strong> — % do orçamento anual gasto</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">Analise os gráficos</div>
+                <div class="step-desc">O <strong>gráfico de linha</strong> mostra a evolução mês a mês comparando entradas e saídas. O <strong>gráfico de pizza</strong> mostra quais categorias de despesa concentram mais gastos.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">Revise lançamentos recentes</div>
+                <div class="step-desc">A tabela na parte inferior lista os últimos lançamentos registrados. Clique em qualquer linha para ver mais detalhes ou editar o lançamento.</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════════
+           PLANO DE CONTAS
+      ═══════════════════════════════════════════════ -->
+      <div class="help-section" id="plano">
+        <div class="help-section-header">
+          <div class="help-section-icon orange">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <div class="help-section-meta">
+            <h2>Plano de Contas</h2>
+            <p>Estruture e gerencie a hierarquia de contas financeiras da organização</p>
+          </div>
+        </div>
+        <div class="help-section-body">
+
+          <div class="screen-diagram">
+            <div style="font-weight:700;color:var(--c-text);margin-bottom:8px">Layout do Plano de Contas (divisão 50/50)</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="zone">
+                <div class="zone-label">Painel Esquerdo — Árvore</div>
+                🔍 Campo de busca (Ctrl+F)<br>
+                [+ Nova Conta] [ENTRADAS] [SAÍDAS]<br>
+                ▶ ENTRADAS<br>
+                &nbsp;&nbsp;📁 Receitas<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;📄 Doações<br>
+                ▶ SAÍDAS<br>
+                &nbsp;&nbsp;📁 Despesas Adm.<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;📄 Combustível
+              </div>
+              <div class="zone">
+                <div class="zone-label">Painel Direito — Detalhes</div>
+                [Nome da conta selecionada]<br>
+                Caminho: SAÍDAS > Despesas > ...<br><br>
+                Orçamento: R$ 5.000 | Realizado: R$ 3.200<br>
+                ████████░░ 64%<br><br>
+                [+ Novo Lançamento] [Exportar CSV]<br>
+                Lista de lançamentos com filtros
+              </div>
+            </div>
+          </div>
+
+          <div class="section-divider">Criando e Organizando Contas</div>
+
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Crie uma nova conta</div>
+                <div class="step-desc">Clique no botão <strong>+ Nova Conta</strong> na barra de ações. Uma janela de diálogo solicitará o nome e o tipo da conta (ENTRADA ou SAÍDA). A conta será criada no nível raiz — você pode movê-la depois.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Organize a hierarquia com arrastar e soltar</div>
+                <div class="step-desc">Clique e segure uma conta, então arraste-a para dentro de outra conta para criar uma subconta. A estrutura pode ter vários níveis (ex: SAÍDAS → Transporte → Combustível → Gasolina).</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">Renomeie uma conta</div>
+                <div class="step-desc">Dê um <strong>duplo clique</strong> no nome da conta na árvore — ele se tornará editável. Ou selecione a conta e pressione <kbd>F2</kbd>. Confirme com <kbd>Enter</kbd> ou cancele com <kbd>Esc</kbd>.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">Expanda e recolha a árvore</div>
+                <div class="step-desc">Clique na seta (▶/▼) ao lado de qualquer conta para expandir ou recolher seus filhos. Contas com filhos exibem um ícone de pasta.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">5</div>
+              <div class="step-body">
+                <div class="step-title">Filtre por ENTRADAS ou SAÍDAS</div>
+                <div class="step-desc">Use os botões <strong>ENTRADAS</strong> e <strong>SAÍDAS</strong> na barra de ações para exibir apenas o grupo desejado. As contas de entrada aparecem em verde e as de saída em vermelho.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">6</div>
+              <div class="step-body">
+                <div class="step-title">Defina o orçamento de uma conta</div>
+                <div class="step-desc">Selecione a conta (clique uma vez) e clique no valor de orçamento exibido no painel direito. Digite o valor orçado para o ano. Uma barra de progresso mostrará o percentual utilizado.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">7</div>
+              <div class="step-body">
+                <div class="step-title">Exclua uma conta</div>
+                <div class="step-desc">Selecione a conta e pressione <kbd>Del</kbd>, ou use o botão <strong>Remover</strong> no painel direito. <strong>Atenção:</strong> não é possível excluir contas que possuam subcontas ou lançamentos vinculados.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-divider">Buscando Contas</div>
+
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Abra a busca com Ctrl+F</div>
+                <div class="step-desc">Pressione <kbd>Ctrl</kbd>+<kbd>F</kbd> ou clique no campo de busca no topo da árvore. À medida que você digita, as contas que não correspondem ao termo ficam ocultas e os termos encontrados são destacados em amarelo.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Limpe a busca</div>
+                <div class="step-desc">Clique no botão <strong>×</strong> ao lado do campo de busca ou pressione <kbd>Esc</kbd> para limpar o filtro e exibir todas as contas novamente.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="callout tip">
+            <div class="callout-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            </div>
+            <div>
+              <strong>Dica: Seletor de ano</strong>
+              Use o seletor de ano na barra de ações para filtrar os lançamentos de toda a árvore por ano. Isso é útil para comparar o desempenho de um ano específico sem alterar a estrutura de contas.
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════════
+           LANÇAMENTOS
+      ═══════════════════════════════════════════════ -->
+      <div class="help-section" id="lancamentos">
+        <div class="help-section-header">
+          <div class="help-section-icon green">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </div>
+          <div class="help-section-meta">
+            <h2>Lançamentos Financeiros</h2>
+            <p>Registre entradas e saídas de recursos em cada conta do plano</p>
+          </div>
+        </div>
+        <div class="help-section-body">
+
+          <div class="section-divider">Criando um Novo Lançamento</div>
+
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Selecione a conta destino</div>
+                <div class="step-desc">No Plano de Contas, clique na conta onde o lançamento será registrado (ex: "Combustíveis"). O painel direito exibirá os detalhes e lançamentos existentes.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Abra o formulário</div>
+                <div class="step-desc">Clique no botão <strong>+ Novo Lançamento</strong> no painel direito. Uma janela de formulário será exibida sobre a tela.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">Preencha os campos</div>
+                <div class="step-desc">
+                  <ul style="margin-top:8px;padding-left:16px;font-size:13px;color:var(--c-text-muted)">
+                    <li><strong>Data</strong> — data do lançamento (padrão: hoje)</li>
+                    <li><strong>Tipo</strong> — <span class="tag green">Crédito</span> para entrada de recurso, <span class="tag red">Débito</span> para saída</li>
+                    <li><strong>Valor</strong> — valor em R$ (sempre positivo)</li>
+                    <li><strong>Descrição</strong> — histórico detalhado do lançamento</li>
+                    <li><strong>Fornecedor</strong> — associe a um fornecedor cadastrado (opcional)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">Salve o lançamento</div>
+                <div class="step-desc">Clique em <strong>Salvar</strong>. O lançamento aparece imediatamente na lista, e o saldo da conta é atualizado automaticamente. Os KPIs do Dashboard também são recalculados.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-divider">Filtrando e Buscando Lançamentos</div>
+
+          <div class="feature-grid">
+            <div class="feature-card">
+              <div class="feature-card-title">
+                <span style="background:#eff6ff;color:#2563eb">⚡</span>
+                Atalhos de período
+              </div>
+              <ul>
+                <li>Este mês — lançamentos do mês atual</li>
+                <li>Mês anterior — comparativo</li>
+                <li>Este ano — visão anual completa</li>
+              </ul>
+            </div>
+            <div class="feature-card">
+              <div class="feature-card-title">
+                <span style="background:#ecfdf5;color:#10b981">🔍</span>
+                Busca e ordenação
+              </div>
+              <ul>
+                <li>Busque por parte da descrição</li>
+                <li>Ordene por Data (↑↓) ou Valor (↑↓)</li>
+                <li>Filtre por intervalo de datas personalizado</li>
+              </ul>
+            </div>
+            <div class="feature-card">
+              <div class="feature-card-title">
+                <span style="background:#fff7ed;color:#f97316">✏️</span>
+                Editando lançamentos
+              </div>
+              <ul>
+                <li>Clique no lançamento na lista para editar</li>
+                <li>Modifique data, tipo, valor ou descrição</li>
+                <li>Salve para atualizar imediatamente</li>
+              </ul>
+            </div>
+            <div class="feature-card">
+              <div class="feature-card-title">
+                <span style="background:#ecfdf5;color:#10b981">📥</span>
+                Exportação
+              </div>
+              <ul>
+                <li>Clique em Exportar CSV no painel direito</li>
+                <li>Arquivo com: Data, Tipo, Valor, Descrição</li>
+                <li>Útil para importar em Excel ou outro sistema</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="callout warn" style="margin-top:16px">
+            <div class="callout-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div>
+              <strong>Exclusão de lançamentos</strong>
+              A exclusão é definitiva para o período visualizado, mas o registro é mantido internamente para auditoria. Apenas Gerentes e Administradores podem excluir lançamentos.
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════════
+           FORNECEDORES
+      ═══════════════════════════════════════════════ -->
+      <div class="help-section" id="fornecedores">
+        <div class="help-section-header">
+          <div class="help-section-icon teal">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div class="help-section-meta">
+            <h2>Fornecedores</h2>
+            <p>Cadastre e gerencie pessoas físicas e jurídicas prestadoras de serviços</p>
+          </div>
+        </div>
+        <div class="help-section-body">
+
+          <div class="section-divider">Cadastrando um Novo Fornecedor</div>
+
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Acesse o módulo Fornecedores</div>
+                <div class="step-desc">Clique em <strong>Fornecedores</strong> no menu lateral. A tela exibe a lista completa com estatísticas no topo (total, ativos, inativos).</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Clique em "Novo Fornecedor"</div>
+                <div class="step-desc">Um formulário modal será exibido. Comece escolhendo o tipo de pessoa.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">Escolha o tipo de pessoa</div>
+                <div class="step-desc">
+                  <div style="display:flex;gap:8px;margin-top:6px">
+                    <span class="tag blue">Jurídica (PJ)</span> — empresa com CNPJ, Razão Social, Nome Fantasia
+                  </div>
+                  <div style="display:flex;gap:8px;margin-top:6px">
+                    <span class="tag green">Física (PF)</span> — pessoa com CPF, RG, Data de Nascimento, INSS/PIS
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">Preencha os dados básicos</div>
+                <div class="step-desc">Digite o <strong>CNPJ</strong> ou <strong>CPF</strong> — o sistema valida automaticamente os dígitos verificadores. Preencha o restante: nome, telefone e e-mail.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">5</div>
+              <div class="step-body">
+                <div class="step-title">Preencha o endereço com CEP automático</div>
+                <div class="step-desc">Digite o CEP no campo correspondente. O sistema busca o endereço automaticamente e preenche logradouro, bairro, cidade e UF. Complete com o número e complemento.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">6</div>
+              <div class="step-body">
+                <div class="step-title">Vincule às contas do plano (opcional)</div>
+                <div class="step-desc">Na seção <strong>Contas Vinculadas</strong>, marque os checkboxes das contas às quais este fornecedor pode ser associado nos lançamentos. Isso facilita a busca ao registrar despesas.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">7</div>
+              <div class="step-body">
+                <div class="step-title">Defina o status e salve</div>
+                <div class="step-desc">Certifique-se de que o status está <strong>Ativo</strong> para que o fornecedor apareça nos seletores de lançamentos e recibos. Clique em <strong>Salvar Fornecedor</strong>.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-divider">Gerenciando a Lista de Fornecedores</div>
+
+          <div class="feature-grid">
+            <div class="feature-card">
+              <div class="feature-card-title">
+                <span style="background:#f0fdfa;color:#14b8a6">🔍</span>
+                Busca e filtros
+              </div>
+              <ul>
+                <li>Busque por nome, CNPJ/CPF ou razão social</li>
+                <li>Filtre por status: Todos / Ativos / Inativos</li>
+                <li>Resultados em tempo real enquanto digita</li>
+              </ul>
+            </div>
+            <div class="feature-card">
+              <div class="feature-card-title">
+                <span style="background:#ecfdf5;color:#10b981">📥</span>
+                Exportação
+              </div>
+              <ul>
+                <li>Botão Exportar CSV na toolbar</li>
+                <li>Gera planilha com todos os fornecedores</li>
+                <li>Inclui dados de contato e endereço</li>
+              </ul>
+            </div>
+            <div class="feature-card">
+              <div class="feature-card-title">
+                <span style="background:#eff6ff;color:#2563eb">✏️</span>
+                Edição
+              </div>
+              <ul>
+                <li>Clique no ícone de edição na linha da tabela</li>
+                <li>Todos os dados podem ser alterados</li>
+                <li>Alterações salvas instantaneamente</li>
+              </ul>
+            </div>
+            <div class="feature-card">
+              <div class="feature-card-title">
+                <span style="background:#fef2f2;color:#ef4444">🚫</span>
+                Inativar vs. Excluir
+              </div>
+              <ul>
+                <li>Prefira Inativar para preservar histórico</li>
+                <li>Inativo: não aparece em novos lançamentos</li>
+                <li>Excluir remove permanentemente do sistema</li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════════
+           RECIBOS
+      ═══════════════════════════════════════════════ -->
+      <div class="help-section" id="recibos">
+        <div class="help-section-header">
+          <div class="help-section-icon yellow">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <div class="help-section-meta">
+            <h2>Recibo de Pagamento a Autônomo (RPA)</h2>
+            <p>Emita recibos para prestadores de serviços autônomos com cálculo automático de INSS e IRRF</p>
+          </div>
+        </div>
+        <div class="help-section-body">
+
+          <div class="callout info">
+            <div class="callout-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+            </div>
+            <div>
+              <strong>O que é o RPA?</strong>
+              O Recibo de Pagamento a Autônomo é o documento que comprova o pagamento a profissionais autônomos (sem vínculo empregatício). O sistema calcula automaticamente as deduções legais: INSS (20%) e IRRF (tabela progressiva vigente).
+            </div>
+          </div>
+
+          <div class="section-divider">Emitindo um Novo Recibo</div>
+
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Pré-requisito: autônomo cadastrado</div>
+                <div class="step-desc">Antes de emitir o RPA, o autônomo deve estar cadastrado em <strong>Fornecedores</strong> como <span class="tag green">Pessoa Física</span>, com CPF, RG e data de nascimento preenchidos.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Acesse Recibos de Autônomo</div>
+                <div class="step-desc">Clique em <strong>Recibos de Autônomo</strong> no menu lateral. A tela mostra o histórico de todos os recibos emitidos, com filtro por ano e busca por nome/CPF.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">Inicie um novo recibo</div>
+                <div class="step-desc">Clique no botão <strong>+ Novo Recibo</strong>. O formulário de emissão será aberto.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">Selecione o autônomo</div>
+                <div class="step-desc">No campo <strong>Autônomo</strong>, busque e selecione o prestador na lista. Os dados (CPF, RG, data de nascimento) são preenchidos automaticamente.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">5</div>
+              <div class="step-body">
+                <div class="step-title">Preencha os dados do serviço</div>
+                <div class="step-desc">Informe a <strong>Data de emissão</strong>, a <strong>Descrição do serviço</strong> prestado e o <strong>Valor Bruto</strong> em reais.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">6</div>
+              <div class="step-body">
+                <div class="step-title">Verifique os cálculos automáticos</div>
+                <div class="step-desc">
+                  O sistema calcula automaticamente:
+                  <table class="help-table" style="margin-top:10px">
+                    <tr><td><strong>INSS</strong></td><td>20% sobre o valor bruto</td></tr>
+                    <tr><td><strong>IRRF</strong></td><td>Tabela progressiva 2026 (0% a 27,5% conforme faixa)</td></tr>
+                    <tr><td><strong>Valor Líquido</strong></td><td>Bruto − INSS − IRRF</td></tr>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">7</div>
+              <div class="step-body">
+                <div class="step-title">Imprima o recibo</div>
+                <div class="step-desc">Clique em <strong>Imprimir</strong>. Uma janela de impressão será aberta com o recibo formatado. Imprima em duas vias — uma para a organização e uma para o autônomo assinar e devolver.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">8</div>
+              <div class="step-body">
+                <div class="step-title">Recibo salvo automaticamente</div>
+                <div class="step-desc">Após a impressão, o recibo é salvo no histórico com número sequencial (ex: <strong>RPA-0042</strong>). Você pode reimprimi-lo a qualquer momento clicando em <strong>Reimprimir</strong> na tabela de recibos.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="callout warn">
+            <div class="callout-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div>
+              <strong>Tabela IRRF 2026</strong>
+              Os percentuais de IRRF são aplicados conforme a faixa salarial vigente. O sistema usa a tabela oficial atualizada. Consulte o contador da organização em caso de dúvidas sobre alíquotas.
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════════
+           RELATÓRIOS
+      ═══════════════════════════════════════════════ -->
+      <div class="help-section" id="relatorios">
+        <div class="help-section-header">
+          <div class="help-section-icon blue">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <div class="help-section-meta">
+            <h2>Relatórios Financeiros</h2>
+            <p>Gere 7 tipos de relatórios gerenciais e contábeis com filtro por período</p>
+          </div>
+        </div>
+        <div class="help-section-body">
+
+          <div class="screen-diagram">
+            <div style="font-weight:700;color:var(--c-text);margin-bottom:8px">Layout dos Relatórios</div>
+            <div style="display:grid;grid-template-columns:200px 1fr;gap:10px">
+              <div class="zone" style="height:auto">
+                <div class="zone-label">Painel de Controle</div>
+                [DRE]<br>[Gerencial Sintético]<br>[Gerencial Analítico]<br>[Fluxo de Caixa]<br>[Resumo Mensal]<br>[Estrutura Plano]<br>[Orçamento vs Real]<br><br>Período:<br>Data início<br>Data fim<br><br>[Gerar Relatório]<br>[Imprimir]
+              </div>
+              <div class="zone">
+                <div class="zone-label">Área do Relatório Gerado</div>
+                Tabela com dados formatados,<br>
+                subtotais por nível,<br>
+                totalizações e comparativos.
+              </div>
+            </div>
+          </div>
+
+          <div class="section-divider">Como Gerar um Relatório</div>
+
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Escolha o tipo de relatório</div>
+                <div class="step-desc">Clique em um dos tipos listados no painel esquerdo. Cada botão representa um modelo diferente de relatório.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Defina o período</div>
+                <div class="step-desc">Preencha os campos <strong>Data Inicial</strong> e <strong>Data Final</strong>. O relatório considerará apenas os lançamentos neste intervalo.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">Clique em "Gerar Relatório"</div>
+                <div class="step-desc">O sistema coletará os dados e renderizará o relatório na área direita. Aguarde alguns segundos para volumes grandes.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">Imprima ou salve</div>
+                <div class="step-desc">Clique em <strong>Imprimir</strong> para abrir o diálogo de impressão do navegador. Você pode escolher "Salvar como PDF" para gerar um arquivo digital.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-divider">Tipos de Relatório Disponíveis</div>
+
+          <table class="help-table">
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Para que serve</th>
+                <th>Conteúdo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>DRE</strong></td>
+                <td>Demonstração financeira padrão contábil</td>
+                <td>Receitas, Custos, Resultado Operacional</td>
+              </tr>
+              <tr>
+                <td><strong>Gerencial Sintético</strong></td>
+                <td>Resumo executivo por categoria</td>
+                <td>Subtotais por grupo de conta</td>
+              </tr>
+              <tr>
+                <td><strong>Gerencial Analítico</strong></td>
+                <td>Detalhe de cada lançamento</td>
+                <td>Todas as transações por conta</td>
+              </tr>
+              <tr>
+                <td><strong>Fluxo de Caixa</strong></td>
+                <td>Movimentação cronológica</td>
+                <td>Entradas e saídas em ordem de data + saldo acumulado</td>
+              </tr>
+              <tr>
+                <td><strong>Resumo Mensal</strong></td>
+                <td>Comparar meses do ano</td>
+                <td>Tabela mês a mês com entradas vs. saídas</td>
+              </tr>
+              <tr>
+                <td><strong>Estrutura do Plano</strong></td>
+                <td>Documentar o plano de contas</td>
+                <td>Hierarquia completa de contas (sem filtro de data)</td>
+              </tr>
+              <tr>
+                <td><strong>Orçamento vs Realizado</strong></td>
+                <td>Controle orçamentário</td>
+                <td>Orçado × Realizado × Diferença × Percentual</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="callout tip" style="margin-top:16px">
+            <div class="callout-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            </div>
+            <div>
+              <strong>Dica: Orçamento vs Realizado</strong>
+              Para usar este relatório com dados significativos, certifique-se de ter definido o orçamento de cada conta no Plano de Contas (clique no valor de orçamento no painel direito de cada conta).
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════════
+           IMPORTAÇÃO OFX
+      ═══════════════════════════════════════════════ -->
+      <div class="help-section" id="ofx">
+        <div class="help-section-header">
+          <div class="help-section-icon purple">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+          </div>
+          <div class="help-section-meta">
+            <h2>Importação de Extrato Bancário (OFX / CSV)</h2>
+            <p>Importe transações do seu banco diretamente para o plano de contas</p>
+          </div>
+        </div>
+        <div class="help-section-body">
+
+          <div class="callout info">
+            <div class="callout-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+            </div>
+            <div>
+              <strong>Formatos suportados</strong>
+              O sistema aceita arquivos <strong>OFX</strong> (Open Financial Exchange — exportado pela maioria dos bancos brasileiros) e <strong>CSV</strong> genérico.
+            </div>
+          </div>
+
+          <div class="section-divider">Obtendo o arquivo OFX no seu banco</div>
+
+          <p style="font-size:13px;color:var(--c-text-muted);margin-bottom:12px">A maioria dos internet bankings permite exportar o extrato em formato OFX. Procure por opções como "Exportar extrato", "Baixar extrato" ou "Exportar para OFX" nas telas de extrato da sua conta.</p>
+
+          <div class="section-divider">Processo de Importação</div>
+
+          <div class="flow">
+            <div class="flow-step">
+              <div class="flow-box">Exportar OFX<br>no banco</div>
+              <div class="flow-arrow">→</div>
+            </div>
+            <div class="flow-step">
+              <div class="flow-box">Upload do<br>arquivo</div>
+              <div class="flow-arrow">→</div>
+            </div>
+            <div class="flow-step">
+              <div class="flow-box">Revisar<br>transações</div>
+              <div class="flow-arrow">→</div>
+            </div>
+            <div class="flow-step">
+              <div class="flow-box">Selecionar<br>conta destino</div>
+              <div class="flow-arrow">→</div>
+            </div>
+            <div class="flow-step">
+              <div class="flow-box">Confirmar<br>importação</div>
+            </div>
+          </div>
+
+          <div class="steps" style="margin-top:16px">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Abra o importador OFX</div>
+                <div class="step-desc">No Plano de Contas, clique no botão <strong>Importar OFX</strong> (ícone de nuvem com seta para cima) na barra de ações. Uma janela de 2 passos será aberta.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Faça upload do arquivo (Passo 1)</div>
+                <div class="step-desc">Arraste e solte o arquivo .OFX ou .CSV na área indicada, ou clique nela para abrir o seletor de arquivo. O sistema lerá e parseará o conteúdo automaticamente.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">Revise as transações (Passo 2)</div>
+                <div class="step-desc">Uma lista de transações encontradas no arquivo será exibida, com data, tipo (crédito/débito), valor e descrição. Marque ou desmarque o checkbox de cada linha para selecionar quais transações importar.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">Escolha a conta destino</div>
+                <div class="step-desc">No seletor de <strong>Conta de destino</strong>, escolha a conta do plano onde os lançamentos serão criados (ex: "Conta Corrente Bradesco"). Você pode usar o botão <strong>Marcar Todos</strong> para selecionar todas as transações de uma vez.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">5</div>
+              <div class="step-body">
+                <div class="step-title">Confirme a importação</div>
+                <div class="step-desc">Clique em <strong>Importar</strong>. O sistema criará um lançamento para cada transação selecionada. Os novos lançamentos aparecerão na conta de destino e o saldo será atualizado.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="callout warn">
+            <div class="callout-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div>
+              <strong>Evite duplicatas</strong>
+              O sistema não detecta automaticamente lançamentos duplicados. Antes de importar, verifique se o período do extrato já foi lançado manualmente para evitar registros em duplicidade.
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════════
+           BUSCA GLOBAL
+      ═══════════════════════════════════════════════ -->
+      <div class="help-section" id="busca">
+        <div class="help-section-header">
+          <div class="help-section-icon slate">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          </div>
+          <div class="help-section-meta">
+            <h2>Busca Global</h2>
+            <p>Encontre qualquer dado do sistema instantaneamente</p>
+          </div>
+        </div>
+        <div class="help-section-body">
+
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Abra a busca global com Ctrl+K</div>
+                <div class="step-desc">Pressione <kbd>Ctrl</kbd>+<kbd>K</kbd> em qualquer tela do sistema. Uma paleta de busca aparecerá no centro da tela.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Digite o termo de busca</div>
+                <div class="step-desc">Os resultados aparecem em tempo real enquanto você digita. A busca cobre <strong>contas</strong> (por nome e código), <strong>lançamentos</strong> (por descrição e valor) e <strong>fornecedores</strong> (por nome e CNPJ/CPF).</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">Navegue pelos resultados</div>
+                <div class="step-desc">Use as setas <kbd>↑</kbd> <kbd>↓</kbd> para mover entre os resultados. Pressione <kbd>Enter</kbd> para ir ao item selecionado ou clique diretamente com o mouse.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">Feche a busca</div>
+                <div class="step-desc">Pressione <kbd>Esc</kbd> ou clique fora da paleta para fechá-la sem navegar a nenhum resultado.</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════════
+           CONFIGURAÇÕES
+      ═══════════════════════════════════════════════ -->
+      <div class="help-section" id="configuracoes">
+        <div class="help-section-header">
+          <div class="help-section-icon slate">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+          </div>
+          <div class="help-section-meta">
+            <h2>Configurações do Sistema</h2>
+            <p>Personalize a identidade do sistema e exporte seus dados — acesso exclusivo para Administradores</p>
+          </div>
+        </div>
+        <div class="help-section-body">
+
+          <div class="callout danger">
+            <div class="callout-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div>
+              <strong>Acesso restrito</strong>
+              Esta tela está disponível apenas para usuários com perfil <span class="tag red">Admin</span>.
+            </div>
+          </div>
+
+          <div class="feature-grid" style="margin-top:16px">
+            <div class="feature-card">
+              <div class="feature-card-title">
+                <span style="background:#eff6ff;color:#2563eb">🏷️</span>
+                Identidade do Sistema
+              </div>
+              <ul>
+                <li>Altere o nome da organização</li>
+                <li>Altere o nome exibido no sistema</li>
+                <li>O logo e título são atualizados automaticamente</li>
+              </ul>
+            </div>
+            <div class="feature-card">
+              <div class="feature-card-title">
+                <span style="background:#ecfdf5;color:#10b981">📤</span>
+                Exportar Dados (XML)
+              </div>
+              <ul>
+                <li>Exporta toda a estrutura do plano de contas</li>
+                <li>Útil para backup e migração de dados</li>
+                <li>Formato XML estruturado</li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════════
+           USUÁRIOS
+      ═══════════════════════════════════════════════ -->
+      <div class="help-section" id="usuarios">
+        <div class="help-section-header">
+          <div class="help-section-icon pink">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+          </div>
+          <div class="help-section-meta">
+            <h2>Gerenciar Usuários</h2>
+            <p>Crie, edite e controle o acesso dos usuários ao sistema — apenas Administradores</p>
+          </div>
+        </div>
+        <div class="help-section-body">
+
+          <div class="section-divider">Criando um Novo Usuário</div>
+
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Acesse Configurações → Usuários</div>
+                <div class="step-desc">Em <strong>Configurações</strong>, clique em <strong>Gerenciar Usuários</strong>. Uma janela com a lista de usuários cadastrados será exibida.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Clique em "Novo Usuário"</div>
+                <div class="step-desc">Preencha: <strong>nome completo</strong>, <strong>nome de usuário</strong> (para login), <strong>e-mail</strong>, <strong>senha inicial</strong> e <strong>perfil de acesso</strong>.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-title">Defina o perfil e salve</div>
+                <div class="step-desc">Escolha o perfil adequado às responsabilidades do usuário (veja a tabela de Perfis e Permissões). Clique em <strong>Salvar</strong>. O usuário poderá fazer login imediatamente.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-title">Informe as credenciais ao usuário</div>
+                <div class="step-desc">Comunique ao novo usuário o <strong>nome de usuário</strong> e a <strong>senha inicial</strong>. Oriente-o a trocar a senha no primeiro acesso por segurança.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-divider">Trocando Senha de um Usuário</div>
+
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-title">Localize o usuário na lista</div>
+                <div class="step-desc">Em Gerenciar Usuários, clique no ícone de edição ao lado do usuário desejado.</div>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-title">Use "Alterar Senha"</div>
+                <div class="step-desc">Clique em <strong>Alterar Senha</strong>, informe a nova senha e confirme. A senha é salva com criptografia segura (bcrypt).</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════════
+           AUDITORIA
+      ═══════════════════════════════════════════════ -->
+      <div class="help-section" id="auditoria">
+        <div class="help-section-header">
+          <div class="help-section-icon red">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </div>
+          <div class="help-section-meta">
+            <h2>Logs de Auditoria</h2>
+            <p>Rastreie quem fez o quê e quando no sistema — apenas Administradores</p>
+          </div>
+        </div>
+        <div class="help-section-body">
+
+          <p style="font-size:13px;color:var(--c-text-muted);margin-bottom:16px">O log de auditoria registra automaticamente cada ação relevante no sistema: criação, edição e exclusão de contas, lançamentos, fornecedores e recibos.</p>
+
+          <table class="help-table">
+            <thead>
+              <tr><th>Campo</th><th>O que significa</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Data/Hora</strong></td><td>Momento exato da ação (fuso horário do servidor)</td></tr>
+              <tr><td><strong>Usuário</strong></td><td>Quem realizou a ação</td></tr>
+              <tr><td><strong>Ação</strong></td><td>create, update ou delete</td></tr>
+              <tr><td><strong>Registro</strong></td><td>Tabela e ID do registro afetado</td></tr>
+              <tr><td><strong>Detalhes</strong></td><td>Valores anteriores e novos (em formato JSON)</td></tr>
+              <tr><td><strong>IP / Navegador</strong></td><td>Origem da requisição</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout tip" style="margin-top:16px">
+            <div class="callout-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            </div>
+            <div>Acesse em <strong>Configurações → Ver Logs</strong>. Os logs não podem ser alterados ou excluídos por nenhum usuário, garantindo integridade do histórico.</div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════════
+           ATALHOS DE TECLADO
+      ═══════════════════════════════════════════════ -->
+      <div class="help-section" id="atalhos">
+        <div class="help-section-header">
+          <div class="help-section-icon slate">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/></svg>
+          </div>
+          <div class="help-section-meta">
+            <h2>Atalhos de Teclado</h2>
+            <p>Trabalhe mais rápido com os principais atalhos do sistema</p>
+          </div>
+        </div>
+        <div class="help-section-body">
+
+          <div class="section-divider">Global</div>
+          <div class="shortcuts-grid">
+            <div class="shortcut-item">
+              <span class="shortcut-label">Abrir busca global</span>
+              <div class="shortcut-keys"><kbd>Ctrl</kbd><kbd>K</kbd></div>
+            </div>
+            <div class="shortcut-item">
+              <span class="shortcut-label">Fechar modal / paleta</span>
+              <div class="shortcut-keys"><kbd>Esc</kbd></div>
+            </div>
+          </div>
+
+          <div class="section-divider">Plano de Contas</div>
+          <div class="shortcuts-grid">
+            <div class="shortcut-item">
+              <span class="shortcut-label">Buscar na árvore</span>
+              <div class="shortcut-keys"><kbd>Ctrl</kbd><kbd>F</kbd></div>
+            </div>
+            <div class="shortcut-item">
+              <span class="shortcut-label">Renomear conta selecionada</span>
+              <div class="shortcut-keys"><kbd>F2</kbd></div>
+            </div>
+            <div class="shortcut-item">
+              <span class="shortcut-label">Excluir conta selecionada</span>
+              <div class="shortcut-keys"><kbd>Del</kbd></div>
+            </div>
+            <div class="shortcut-item">
+              <span class="shortcut-label">Renomear conta (alternativo)</span>
+              <div class="shortcut-keys">2× clique</div>
+            </div>
+            <div class="shortcut-item">
+              <span class="shortcut-label">Confirmar renomeação</span>
+              <div class="shortcut-keys"><kbd>Enter</kbd></div>
+            </div>
+            <div class="shortcut-item">
+              <span class="shortcut-label">Cancelar edição / fechar busca</span>
+              <div class="shortcut-keys"><kbd>Esc</kbd></div>
+            </div>
+          </div>
+
+          <div class="section-divider">Navegação na Busca Global</div>
+          <div class="shortcuts-grid">
+            <div class="shortcut-item">
+              <span class="shortcut-label">Próximo resultado</span>
+              <div class="shortcut-keys"><kbd>↓</kbd></div>
+            </div>
+            <div class="shortcut-item">
+              <span class="shortcut-label">Resultado anterior</span>
+              <div class="shortcut-keys"><kbd>↑</kbd></div>
+            </div>
+            <div class="shortcut-item">
+              <span class="shortcut-label">Ir ao resultado selecionado</span>
+              <div class="shortcut-keys"><kbd>Enter</kbd></div>
+            </div>
+            <div class="shortcut-item">
+              <span class="shortcut-label">Fechar busca</span>
+              <div class="shortcut-keys"><kbd>Esc</kbd></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════════
+           GLOSSÁRIO
+      ═══════════════════════════════════════════════ -->
+      <div class="help-section" id="glossario">
+        <div class="help-section-header">
+          <div class="help-section-icon blue">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          </div>
+          <div class="help-section-meta">
+            <h2>Glossário Financeiro</h2>
+            <p>Significado dos principais termos usados no sistema</p>
+          </div>
+        </div>
+        <div class="help-section-body">
+
+          <table class="help-table">
+            <thead>
+              <tr><th>Termo</th><th>Definição</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Crédito</strong></td><td>Entrada de recursos financeiros (ex: recebimento de doação, venda de produto).</td></tr>
+              <tr><td><strong>Débito</strong></td><td>Saída de recursos financeiros (ex: pagamento de fornecedor, despesa administrativa).</td></tr>
+              <tr><td><strong>Plano de Contas</strong></td><td>Estrutura hierárquica que organiza todas as categorias de receitas e despesas da organização.</td></tr>
+              <tr><td><strong>Lançamento</strong></td><td>Registro individual de uma entrada ou saída financeira vinculada a uma conta.</td></tr>
+              <tr><td><strong>DRE</strong></td><td>Demonstração do Resultado do Exercício — relatório que mostra receitas, custos e o resultado (superávit ou déficit) do período.</td></tr>
+              <tr><td><strong>Fluxo de Caixa</strong></td><td>Movimento cronológico de entradas e saídas, mostrando a evolução do saldo disponível.</td></tr>
+              <tr><td><strong>Orçamento</strong></td><td>Valor planejado para uma conta em um período. Permite comparar com o que foi efetivamente gasto.</td></tr>
+              <tr><td><strong>Realizado</strong></td><td>Valor efetivamente lançado em uma conta, independente do que foi orçado.</td></tr>
+              <tr><td><strong>INSS</strong></td><td>Instituto Nacional do Seguro Social. Para autônomos, é retido 20% do valor bruto do serviço.</td></tr>
+              <tr><td><strong>IRRF</strong></td><td>Imposto de Renda Retido na Fonte. Calculado sobre o valor do serviço após dedução do INSS, conforme tabela progressiva.</td></tr>
+              <tr><td><strong>RPA</strong></td><td>Recibo de Pagamento a Autônomo. Documento que comprova o pagamento a prestadores de serviço sem vínculo empregatício.</td></tr>
+              <tr><td><strong>OFX</strong></td><td>Open Financial Exchange. Formato de arquivo padrão dos bancos para exportação de extratos bancários.</td></tr>
+              <tr><td><strong>PJ</strong></td><td>Pessoa Jurídica — empresa com CNPJ.</td></tr>
+              <tr><td><strong>PF</strong></td><td>Pessoa Física — indivíduo com CPF.</td></tr>
+              <tr><td><strong>CNPJ</strong></td><td>Cadastro Nacional da Pessoa Jurídica — número de identificação de empresas no Brasil.</td></tr>
+              <tr><td><strong>CPF</strong></td><td>Cadastro de Pessoas Físicas — número de identificação de pessoas físicas no Brasil.</td></tr>
+              <tr><td><strong>Soft-delete</strong></td><td>Método de exclusão que não apaga o registro do banco de dados, apenas o marca como excluído. Garante rastreabilidade no histórico de auditoria.</td></tr>
+            </tbody>
+          </table>
+
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="text-align:center;padding:32px 0 16px;color:var(--c-text-faint);font-size:12px">
+        FinanceiroApp — Central de Ajuda &nbsp;·&nbsp; Versão 2.0 &nbsp;·&nbsp; Patrimônio da Mata Brasil
+        <br><a href="index.html" style="color:var(--c-primary);text-decoration:none;margin-top:6px;display:inline-block">← Voltar ao Sistema</a>
+      </div>
+
+    </div><!-- /help-content -->
+  </main>
+
+</div><!-- /help-shell -->
+
+<script>
+  // ── Active nav item on scroll ──
+  const sections = document.querySelectorAll('[id]');
+  const navItems = document.querySelectorAll('.help-nav-item');
+
+  function setActive() {
+    let current = '';
+    sections.forEach(s => {
+      const top = s.getBoundingClientRect().top;
+      if (top <= 80) current = s.id;
+    });
+    navItems.forEach(item => {
+      item.classList.remove('active');
+      if (item.getAttribute('href') === '#' + current) item.classList.add('active');
+    });
+  }
+
+  document.getElementById('helpMain').addEventListener('scroll', setActive);
+  setActive();
+
+  // ── Sidebar search ──
+  const searchInput = document.getElementById('navSearch');
+  const allSections = document.querySelectorAll('.help-section');
+
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.toLowerCase().trim();
+    if (!q) {
+      allSections.forEach(s => s.classList.remove('search-hidden'));
+      document.querySelectorAll('.help-nav-item').forEach(i => i.classList.remove('search-hidden'));
+      return;
+    }
+    allSections.forEach(s => {
+      const text = s.textContent.toLowerCase();
+      s.classList.toggle('search-hidden', !text.includes(q));
+    });
+  });
+
+  // ── Smooth scroll for TOC pills (they're anchors, handled by CSS) ──
+
+  // ── Mark first nav item active on load ──
+  if (navItems.length) navItems[0].classList.add('active');
+</script>
+
+</body>
+</html>
