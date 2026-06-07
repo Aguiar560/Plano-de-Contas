@@ -3133,11 +3133,8 @@ body.sidebar-open .btn-hamburger span:nth-child(3) { transform: translateY(-7px)
   }
   body.sidebar-open .sidebar { transform: translateX(0); }
   body.sidebar-open .sidebar-overlay { display: block; }
-  body.sidebar-open { overflow: hidden; }
 
-  /* ── App shell: single column, no fixed sidebar space ── */
-  .app-shell { display: block; height: auto; min-height: 100vh; overflow: visible; }
-  .app-right  { width: 100%; overflow-x: hidden; }
+  /* ── App shell unchanged (flex 100vh) — sidebar is fixed so app-right fills full width via flex:1 ── */
 
   /* ── Topbar ── */
   .topbar { height: 54px; padding: 0 10px; gap: 6px; }
