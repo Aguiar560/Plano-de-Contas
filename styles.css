@@ -1168,6 +1168,9 @@ html, body {
 #btnShowEntradas.active-filter { background: #059669; border-color: #047857; }
 #btnShowSaidas.active-filter   { background: #dc2626; border-color: #b91c1c; }
 
+/* Mobile resize handle — hidden on desktop */
+.tree-resize-handle { display: none; }
+
 /* Conta actions */
 .conta-actions {
   display: flex;
@@ -3132,6 +3135,30 @@ body.sidebar-open .btn-hamburger span:nth-child(3) { transform: translateY(-7px)
 
   /* ── Show hamburger ── */
   .btn-hamburger { display: flex; }
+
+  /* ── Vertical resize handle (mobile only) ── */
+  .tree-resize-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 22px;
+    background: var(--c-bg);
+    border-top: 1px solid var(--c-border);
+    border-bottom: 1px solid var(--c-border);
+    cursor: ns-resize;
+    flex-shrink: 0;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .tree-resize-handle::after {
+    content: '';
+    width: 44px;
+    height: 4px;
+    background: var(--c-border);
+    border-radius: 3px;
+  }
+  .tree-resize-handle:active::after { background: var(--c-primary); }
 
   /* ── Sidebar: fixed slide-in from left ── */
   .sidebar {
