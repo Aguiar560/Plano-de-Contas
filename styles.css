@@ -3283,19 +3283,18 @@ body.sidebar-open .btn-hamburger span:nth-child(3) { transform: translateY(-7px)
   ══════════════════════════════════════════════════════════════════ */
 
   /* Stack tree + detail vertically */
-  .view-flex.active { flex-direction: column; }
+  .view-flex.active { flex-direction: column; height: 100%; }
   .panel-tree {
+    flex: none;
     width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
+    height: 42vh;
     border-right: none;
     border-bottom: 1px solid var(--c-border);
   }
-  .tree-container {
-    max-height: 38vh;
-  }
+  .panel-report { flex: 1; padding: 12px; overflow-y: auto; }
   .panel-splitter { display: none !important; }
-  .panel-report { padding: 12px; }
 
   /* Toolbar buttons: Nova Conta full width, Entradas/Saídas side-by-side below */
   .add-conta-box { padding: 8px 10px; }

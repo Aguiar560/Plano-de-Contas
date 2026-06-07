@@ -37,24 +37,24 @@
   });
 })();
 
-// Tree panel vertical drag-to-resize
+// Tree panel vertical drag-to-resize (resizes .panel-tree height)
 (function () {
   var handle = document.getElementById('treeResizeHandle');
   if (!handle) return;
 
-  var STORAGE_KEY = 'treeHeight';
-  var MIN_H = 80;
-  var MAX_RATIO = 0.70;
+  var STORAGE_KEY = 'panelTreeHeight';
+  var MIN_H = 120;
+  var MAX_RATIO = 0.75;
 
-  function getTreeContainer() {
-    return document.querySelector('.tree-container');
+  function getPanelTree() {
+    return document.querySelector('.panel-tree');
   }
 
   function restoreSavedHeight() {
     if (window.innerWidth > 768) return;
     var saved = localStorage.getItem(STORAGE_KEY);
-    var tc = getTreeContainer();
-    if (saved && tc) tc.style.maxHeight = saved + 'px';
+    var pt = getPanelTree();
+    if (saved && pt) pt.style.height = saved + 'px';
   }
 
   restoreSavedHeight();
@@ -64,31 +64,31 @@
   var dragging = false;
 
   handle.addEventListener('touchstart', function (e) {
-    var tc = getTreeContainer();
-    if (!tc) return;
+    var pt = getPanelTree();
+    if (!pt) return;
     dragging = true;
     startY = e.touches[0].clientY;
-    startH = tc.getBoundingClientRect().height;
+    startH = pt.getBoundingClientRect().height;
     e.preventDefault();
   }, { passive: false });
 
   handle.addEventListener('touchmove', function (e) {
     if (!dragging) return;
-    var tc = getTreeContainer();
-    if (!tc) return;
+    var pt = getPanelTree();
+    if (!pt) return;
     var dy = e.touches[0].clientY - startY;
     var maxH = Math.round(window.innerHeight * MAX_RATIO);
     var newH = Math.max(MIN_H, Math.min(maxH, startH + dy));
-    tc.style.maxHeight = newH + 'px';
+    pt.style.height = newH + 'px';
     e.preventDefault();
   }, { passive: false });
 
   handle.addEventListener('touchend', function () {
     if (!dragging) return;
     dragging = false;
-    var tc = getTreeContainer();
-    if (tc) {
-      var h = tc.getBoundingClientRect().height;
+    var pt = getPanelTree();
+    if (pt) {
+      var h = pt.getBoundingClientRect().height;
       localStorage.setItem(STORAGE_KEY, Math.round(h));
     }
   });
