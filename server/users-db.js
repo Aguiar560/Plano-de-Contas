@@ -675,6 +675,7 @@ function _mapRow(r) {
 function _mapJsonUser(u) {
   return {
     id:        u.id,
+    empresaId: u.empresaId || null,
     usuario:   u.usuario,
     nome:      u.nome,
     perfil:    u.perfil,

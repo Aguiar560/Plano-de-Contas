@@ -43,7 +43,7 @@ async function getAdminToken() {
  */
 function makeToken(payload = {}, opts = {}) {
   return jwt.sign(
-    { userId: 1, usuario: 'admin', perfil: 'admin', ...payload },
+    { userId: 1, usuario: 'admin', perfil: 'admin', empresaId: 1, ...payload },
     JWT_SECRET,
     { expiresIn: '1h', ...opts }
   );

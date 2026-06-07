@@ -155,7 +155,7 @@ describe('createUser', () => {
     await db.createUser({ usuario: 'MAIUSCULAS', nome: 'N', senhaHash: 'h', perfil: 'gerente' });
 
     const params = mockPool.execute.mock.calls[0][1];
-    expect(params[0]).toBe('maiusculas');
+    expect(params[1]).toBe('maiusculas'); // params[0] = empresa_id, params[1] = usuario
   });
 });
 

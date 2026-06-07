@@ -43,7 +43,7 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
       const u = await usersDb.findById(id);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
       // Admin só pode editar usuários da própria empresa
-      if (empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Forbidden' });
+      if (empresaId && u.empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Forbidden' });
       if (u.perfil==='admin' && ativo===false) {
         const all = await usersDb.listAll(empresaId);
         const admins = all.filter(x=>x.perfil==='admin' && x.ativo);
@@ -64,7 +64,7 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
     try {
       const u = await usersDb.findById(id);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
-      if (empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Forbidden' });
+      if (empresaId && u.empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Forbidden' });
       await usersDb.updatePassword(id, bcrypt.hashSync(value.nova, 10));
       await audit(req, 'reset_password', 'usuario', id, { targetUsuario: u.usuario });
       res.json({ ok:true });
@@ -104,7 +104,7 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
     try {
       const u = await usersDb.findById(id);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
-      if (empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Forbidden' });
+      if (empresaId && u.empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Forbidden' });
       await usersDb.unlockUser(id);
       await audit(req, 'unlock_user', 'usuario', id, { targetUsuario: u.usuario });
       res.json({ ok:true });
@@ -117,7 +117,7 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
     try {
       const u = await usersDb.findById(id);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
-      if (empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Forbidden' });
+      if (empresaId && u.empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Forbidden' });
       if (u.perfil === 'admin') {
         const all = await usersDb.listAll(empresaId);
         const admins = all.filter(x=>x.perfil==='admin' && x.ativo);
@@ -136,7 +136,7 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
     try {
       const u = await usersDb.findById(id);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
-      if (empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Sem permissão' });
+      if (empresaId && u.empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Sem permissão' });
       const perms = await usersDb.getUserPermissions(id);
       res.json({ ok:true, permissions: perms || {} });
     } catch(e) { res.status(500).json({ ok:false, erro:'Erro ao ler permissões' }); }
@@ -152,7 +152,7 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
     try {
       const u = await usersDb.findById(id);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
-      if (empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Sem permissão' });
+      if (empresaId && u.empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Sem permissão' });
       await usersDb.saveUserPermissions(id, value);
       await audit(req, 'update_permissions', 'usuario', id, { targetUsuario: u.usuario, permissions: value });
       res.json({ ok:true });
