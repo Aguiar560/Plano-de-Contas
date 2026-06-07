@@ -48,9 +48,10 @@ module.exports = function empresasRoutes({ db, logger, audit, Joi, readLimiter, 
   router.post('/empresas', writeLimiter, jwtMiddleware, requireSuperAdmin, async (req, res) => {
     if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
     const schemaFull = _empresaSchema.keys({
-      admin_usuario: Joi.string().alphanum().min(3).max(50).required(),
-      admin_senha:   Joi.string().min(6).max(200).required(),
-      admin_nome:    Joi.string().min(1).max(200).default('Administrador')
+      admin_usuario:          Joi.string().alphanum().min(3).max(50).required(),
+      admin_senha:            Joi.string().min(4).max(200).required(),
+      admin_nome:             Joi.string().min(1).max(200).default('Administrador'),
+      must_change_password:   Joi.boolean().default(false)
     });
     const { error, value } = schemaFull.validate(req.body, { abortEarly: true, stripUnknown: true });
     if (error) return res.status(400).json({ ok:false, erro: error.details[0].message });
@@ -71,9 +72,10 @@ module.exports = function empresasRoutes({ db, logger, audit, Joi, readLimiter, 
 
       // Cria admin inicial para a nova empresa
       const hash = bcrypt.hashSync(value.admin_senha, 10);
+      const mustChange = value.must_change_password ? 1 : 0;
       await conn.query(
-        'INSERT INTO usuario (empresa_id, usuario, nome, senha_hash, perfil, ativo, created_at) VALUES (?,?,?,?,?,1,NOW())',
-        [novaEmpresaId, value.admin_usuario.toLowerCase().trim(), value.admin_nome.trim(), hash, 'admin']
+        'INSERT INTO usuario (empresa_id, usuario, nome, senha_hash, perfil, ativo, must_change_password, created_at) VALUES (?,?,?,?,?,1,?,NOW())',
+        [novaEmpresaId, value.admin_usuario.toLowerCase().trim(), value.admin_nome.trim(), hash, 'admin', mustChange]
       );
 
       await conn.commit();
