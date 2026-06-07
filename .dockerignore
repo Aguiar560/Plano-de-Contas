@@ -1,0 +1,11 @@
+.git
+.github
+node_modules
+server/node_modules
+legacy
+*.md
+.env
+.env.*
+server/.env
+server/__tests__
+server/jest.config.*
