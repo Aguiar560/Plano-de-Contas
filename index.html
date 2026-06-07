@@ -180,9 +180,6 @@
     </div>
   </aside>
 
-  <!-- Sidebar overlay backdrop (mobile) -->
-  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
-
   <!-- ─────────────────────────────────────────────────────────────────
        MAIN AREA (topbar + content)
   ───────────────────────────────────────────────────────────────────── -->
@@ -1584,6 +1581,9 @@
     </div>
   </div>
 </div>
+
+<!-- Sidebar overlay backdrop — outside app-shell so position:fixed anchors to viewport on iOS Safari -->
+<div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
 <!-- ── TOAST & LOADING ──────────────────────────────────────── -->
 <div class="toast-container" id="toastContainer"></div>
