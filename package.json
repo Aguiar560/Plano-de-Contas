@@ -1,0 +1,13 @@
+{
+  "name": "plano-contas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema financeiro para PMEs — Plano de Contas",
+  "scripts": {
+    "start": "node server/server.js",
+    "postinstall": "cd server && npm install --omit=dev"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
