@@ -365,7 +365,7 @@ function _abrirPrimeiroLogin() {
     btn.textContent = 'Salvando…';
     const base = (typeof API_BASE !== 'undefined') ? API_BASE : '';
     try {
-      const resp = await fetch(base + '/api/users/me/first-password', {
+      const resp = await fetch(base + '/api/me/first-password', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nova })
