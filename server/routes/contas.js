@@ -5,52 +5,55 @@ const express = require('express');
 module.exports = function contasRoutes({ db, logger, audit, Joi, readLimiter, writeLimiter, jwtMiddleware, requireAdmin, requireRole, _decodeMojibake }) {
   const router = express.Router();
 
-  // Hash compartilhado: usado tanto pelo ETag do GET /contas quanto pelo GET /contas/hash
-  async function _computeHash() {
+  // ETag: baseado no timestamp mais recente da empresa
+  async function _computeHash(empresaId) {
     const [[{ ts }]] = await db.pool.query(`
       SELECT GREATEST(
-        COALESCE((SELECT MAX(created_at)  FROM conta),       '2000-01-01'),
-        COALESCE((SELECT MAX(updated_at)  FROM conta),       '2000-01-01'),
-        COALESCE((SELECT MAX(deleted_at)  FROM conta),       '2000-01-01'),
-        COALESCE((SELECT MAX(created_at)  FROM lancamento),  '2000-01-01'),
-        COALESCE((SELECT MAX(updated_at)  FROM lancamento),  '2000-01-01'),
-        COALESCE((SELECT MAX(deleted_at)  FROM lancamento),  '2000-01-01')
+        COALESCE((SELECT MAX(created_at)  FROM conta      WHERE empresa_id = ?), '2000-01-01'),
+        COALESCE((SELECT MAX(updated_at)  FROM conta      WHERE empresa_id = ?), '2000-01-01'),
+        COALESCE((SELECT MAX(deleted_at)  FROM conta      WHERE empresa_id = ?), '2000-01-01'),
+        COALESCE((SELECT MAX(created_at)  FROM lancamento WHERE empresa_id = ?), '2000-01-01'),
+        COALESCE((SELECT MAX(updated_at)  FROM lancamento WHERE empresa_id = ?), '2000-01-01'),
+        COALESCE((SELECT MAX(deleted_at)  FROM lancamento WHERE empresa_id = ?), '2000-01-01')
       ) AS ts
-    `);
+    `, [empresaId, empresaId, empresaId, empresaId, empresaId, empresaId]);
     return ts ? (ts instanceof Date ? String(ts.getTime()) : String(ts)) : '0';
   }
 
   router.get('/contas', readLimiter, jwtMiddleware, requireRole('visualizador'), async (req, res) => {
     if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
+    const empresaId = req.user.empresaId;
+    if (!empresaId) return res.status(403).json({ ok:false, erro:'Sem empresa associada' });
     const anoParam = parseInt(req.query.ano, 10);
     const ano = (anoParam >= 2000 && anoParam <= 2100) ? anoParam : new Date().getFullYear();
     try {
-      // ETag: evita retransmitir dados quando nada mudou (304 Not Modified)
       try {
-        const h = await _computeHash();
+        const h = await _computeHash(empresaId);
         const etag = `"${h}"`;
         res.setHeader('ETag', etag);
         res.setHeader('Cache-Control', 'private, no-cache');
         if (req.headers['if-none-match'] === etag) return res.status(304).end();
-      } catch(e) { /* ETag opcional — continua mesmo se falhar */ }
-      const rows = await db.query('SELECT id, parent_id, codigo, nome, natureza, orcamento, ordem FROM conta WHERE deleted_at IS NULL ORDER BY codigo');
+      } catch(e) { /* ETag opcional */ }
+
+      const rows = await db.query(
+        'SELECT id, parent_id, codigo, nome, natureza, orcamento, ordem FROM conta WHERE empresa_id = ? AND deleted_at IS NULL ORDER BY codigo',
+        [empresaId]
+      );
       const lancs = await db.query(
-        'SELECT id, conta_id, data, tipo, valor, descricao, fornecedor_id FROM lancamento WHERE deleted_at IS NULL AND YEAR(data) = ? ORDER BY data, id',
-        [ano]
+        'SELECT id, conta_id, data, tipo, valor, descricao, fornecedor_id FROM lancamento WHERE empresa_id = ? AND deleted_at IS NULL AND YEAR(data) = ? ORDER BY data, id',
+        [empresaId, ano]
       );
 
       const lancMap = {};
       lancs.forEach(l => {
         if (!lancMap[l.conta_id]) lancMap[l.conta_id] = [];
-        const dataStr = l.data instanceof Date
-          ? l.data.toISOString().slice(0, 10)
-          : String(l.data).slice(0, 10);
+        const dataStr = l.data instanceof Date ? l.data.toISOString().slice(0, 10) : String(l.data).slice(0, 10);
         lancMap[l.conta_id].push({
-          id:           l.id,
-          tipo:         l.tipo,
-          valor:        parseFloat(l.valor),
-          descricao:    _decodeMojibake(l.descricao || ''),
-          data:         dataStr,
+          id:            l.id,
+          tipo:          l.tipo,
+          valor:         parseFloat(l.valor),
+          descricao:     _decodeMojibake(l.descricao || ''),
+          data:          dataStr,
           fornecedor_id: l.fornecedor_id || null
         });
       });
@@ -68,8 +71,10 @@ module.exports = function contasRoutes({ db, logger, audit, Joi, readLimiter, wr
 
   router.get('/contas/hash', readLimiter, jwtMiddleware, requireRole('visualizador'), async (req, res) => {
     if (!db) return res.json({ ok:true, hash: '0' });
+    const empresaId = req.user.empresaId;
+    if (!empresaId) return res.json({ ok:true, hash: '0' });
     try {
-      const hash = await _computeHash();
+      const hash = await _computeHash(empresaId);
       res.json({ ok:true, hash });
     } catch(e) {
       logger.error('GET /api/contas/hash falhou', { err: e && e.message });
@@ -79,15 +84,17 @@ module.exports = function contasRoutes({ db, logger, audit, Joi, readLimiter, wr
 
   router.post('/admin/fix-encoding', jwtMiddleware, requireAdmin, async (req, res) => {
     if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
+    const empresaId = req.user.empresaId;
+    if (!empresaId) return res.status(403).json({ ok:false, erro:'Sem empresa associada' });
     try {
       var p = 'C[23][89AB][0-9A-Fa-f]';
       var [rC] = await db.pool.query(
         'UPDATE conta SET nome = CONVERT(BINARY CONVERT(nome USING latin1) USING utf8)' +
-        ' WHERE HEX(nome) REGEXP ?', [p]
+        ' WHERE empresa_id = ? AND HEX(nome) REGEXP ?', [empresaId, p]
       );
       var [rL] = await db.pool.query(
         'UPDATE lancamento SET descricao = CONVERT(BINARY CONVERT(descricao USING latin1) USING utf8)' +
-        ' WHERE descricao IS NOT NULL AND LENGTH(descricao) > 0 AND HEX(descricao) REGEXP ?', [p]
+        ' WHERE empresa_id = ? AND descricao IS NOT NULL AND LENGTH(descricao) > 0 AND HEX(descricao) REGEXP ?', [empresaId, p]
       );
       var fixedContas = rC.affectedRows || 0;
       var fixedLancs  = rL.affectedRows  || 0;
@@ -98,6 +105,8 @@ module.exports = function contasRoutes({ db, logger, audit, Joi, readLimiter, wr
 
   router.post('/contas', writeLimiter, jwtMiddleware, requireRole('gerente'), async (req, res) => {
     if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
+    const empresaId = req.user.empresaId;
+    if (!empresaId) return res.status(403).json({ ok:false, erro:'Sem empresa associada' });
 
     const contaSchema = Joi.object({
       parent_codigo: Joi.string().max(50).optional().allow('', null),
@@ -114,25 +123,29 @@ module.exports = function contasRoutes({ db, logger, audit, Joi, readLimiter, wr
       let parentId = null, novoCodigo;
 
       if (parent_codigo) {
-        const [[pai]] = await conn.query('SELECT id, codigo FROM conta WHERE codigo = ? AND deleted_at IS NULL LIMIT 1 FOR UPDATE', [parent_codigo]);
+        const [[pai]] = await conn.query(
+          'SELECT id, codigo FROM conta WHERE empresa_id = ? AND codigo = ? AND deleted_at IS NULL LIMIT 1 FOR UPDATE',
+          [empresaId, parent_codigo]
+        );
         if (!pai) { await conn.rollback(); return res.status(404).json({ ok:false, erro:'Conta pai não encontrada: ' + parent_codigo }); }
         parentId = pai.id;
         const [[{ maxSeg }]] = await conn.query(
           `SELECT MAX(CAST(SUBSTRING_INDEX(codigo, '.', -1) AS UNSIGNED)) AS maxSeg
-           FROM conta WHERE parent_id = ?`, [parentId]
+           FROM conta WHERE empresa_id = ? AND parent_id = ?`, [empresaId, parentId]
         );
         novoCodigo = pai.codigo + '.' + ((maxSeg || 0) + 1);
       } else {
         const [[{ maxSeg }]] = await conn.query(
-          `SELECT MAX(CAST(codigo AS UNSIGNED)) AS maxSeg FROM conta WHERE parent_id IS NULL`
+          `SELECT MAX(CAST(codigo AS UNSIGNED)) AS maxSeg FROM conta WHERE empresa_id = ? AND parent_id IS NULL`,
+          [empresaId]
         );
         novoCodigo = String((maxSeg || 0) + 1);
       }
 
       const nat = natureza === 'entrada' ? 'entrada' : 'saida';
       const [r] = await conn.execute(
-        'INSERT INTO conta (parent_id, codigo, nome, natureza, created_at) VALUES (?,?,?,?,NOW())',
-        [parentId, novoCodigo, nome.toUpperCase().trim(), nat]
+        'INSERT INTO conta (empresa_id, parent_id, codigo, nome, natureza, created_at) VALUES (?,?,?,?,?,NOW())',
+        [empresaId, parentId, novoCodigo, nome.toUpperCase().trim(), nat]
       );
       await conn.commit();
       await audit(req, 'conta_criada', 'conta', novoCodigo, { codigo: novoCodigo, nome: nome.toUpperCase().trim(), natureza: nat, parent_codigo: parent_codigo || null });
@@ -148,6 +161,8 @@ module.exports = function contasRoutes({ db, logger, audit, Joi, readLimiter, wr
 
   router.put('/contas/:codigo', writeLimiter, jwtMiddleware, requireRole('gerente'), async (req, res) => {
     if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
+    const empresaId = req.user.empresaId;
+    if (!empresaId) return res.status(403).json({ ok:false, erro:'Sem empresa associada' });
     const codigo = req.params.codigo;
     if (!codigo || !codigo.trim()) return res.status(400).json({ ok:false, erro:'código inválido' });
 
@@ -161,7 +176,10 @@ module.exports = function contasRoutes({ db, logger, audit, Joi, readLimiter, wr
     const conn = await db.pool.getConnection();
     try {
       await conn.beginTransaction();
-      const [[row]] = await conn.query('SELECT id, nome, orcamento FROM conta WHERE codigo = ? AND deleted_at IS NULL LIMIT 1 FOR UPDATE', [codigo]);
+      const [[row]] = await conn.query(
+        'SELECT id, nome, orcamento FROM conta WHERE empresa_id = ? AND codigo = ? AND deleted_at IS NULL LIMIT 1 FOR UPDATE',
+        [empresaId, codigo]
+      );
       if (!row) { await conn.rollback(); return res.status(404).json({ ok:false, erro:'Conta não encontrada: ' + codigo }); }
       const before = { nome: row.nome, orcamento: row.orcamento };
       const fields = [];
@@ -186,18 +204,26 @@ module.exports = function contasRoutes({ db, logger, audit, Joi, readLimiter, wr
 
   router.delete('/contas/:codigo', writeLimiter, jwtMiddleware, requireAdmin, async (req, res) => {
     if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
+    const empresaId = req.user.empresaId;
+    if (!empresaId) return res.status(403).json({ ok:false, erro:'Sem empresa associada' });
     const codigo = req.params.codigo;
     const conn = await db.pool.getConnection();
     try {
       await conn.beginTransaction();
-      const [[conta]] = await conn.query('SELECT id, nome FROM conta WHERE codigo = ? AND deleted_at IS NULL LIMIT 1 FOR UPDATE', [codigo]);
+      const [[conta]] = await conn.query(
+        'SELECT id, nome FROM conta WHERE empresa_id = ? AND codigo = ? AND deleted_at IS NULL LIMIT 1 FOR UPDATE',
+        [empresaId, codigo]
+      );
       if (!conta) { await conn.rollback(); return res.status(404).json({ ok:false, erro:'Conta não encontrada: ' + codigo }); }
 
-      const [[{ qtd }]] = await conn.query('SELECT COUNT(*) AS qtd FROM conta WHERE parent_id = ? AND deleted_at IS NULL', [conta.id]);
+      const [[{ qtd }]] = await conn.query(
+        'SELECT COUNT(*) AS qtd FROM conta WHERE empresa_id = ? AND parent_id = ? AND deleted_at IS NULL',
+        [empresaId, conta.id]
+      );
       if (qtd > 0) { await conn.rollback(); return res.status(409).json({ ok:false, erro:`Conta "${conta.nome}" possui ${qtd} subconta(s) ativa(s). Remova-as primeiro.` }); }
 
       await conn.execute('UPDATE conta SET deleted_at = NOW() WHERE id = ?', [conta.id]);
-      await conn.execute('UPDATE lancamento SET deleted_at = NOW() WHERE conta_id = ? AND deleted_at IS NULL', [conta.id]);
+      await conn.execute('UPDATE lancamento SET deleted_at = NOW() WHERE empresa_id = ? AND conta_id = ? AND deleted_at IS NULL', [empresaId, conta.id]);
       await conn.commit();
       await audit(req, 'conta_deletada', 'conta', codigo, { codigo, nome: conta.nome });
       res.json({ ok:true, codigo, nome: conta.nome });

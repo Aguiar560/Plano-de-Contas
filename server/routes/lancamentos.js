@@ -7,6 +7,8 @@ module.exports = function lancamentosRoutes({ db, logger, audit, Joi, readLimite
 
   router.get('/lancamentos', readLimiter, jwtMiddleware, requireRole('visualizador'), async (req, res) => {
     if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
+    const empresaId = req.user.empresaId;
+    if (!empresaId) return res.status(403).json({ ok:false, erro:'Sem empresa associada' });
 
     const qSchema = Joi.object({
       conta_id: Joi.number().integer().positive().required(),
@@ -21,11 +23,14 @@ module.exports = function lancamentosRoutes({ db, logger, audit, Joi, readLimite
     if (vErr) return res.status(400).json({ ok:false, erro: vErr.details[0].message });
 
     try {
-      const contas = await db.query('SELECT id FROM conta WHERE id = ? AND deleted_at IS NULL LIMIT 1', [q.conta_id]);
+      const contas = await db.query(
+        'SELECT id FROM conta WHERE empresa_id = ? AND id = ? AND deleted_at IS NULL LIMIT 1',
+        [empresaId, q.conta_id]
+      );
       if (!contas.length) return res.status(404).json({ ok:false, erro:'Conta não encontrada' });
 
-      const where = ['l.conta_id = ?', 'l.deleted_at IS NULL'];
-      const params = [q.conta_id];
+      const where = ['l.empresa_id = ?', 'l.conta_id = ?', 'l.deleted_at IS NULL'];
+      const params = [empresaId, q.conta_id];
       if (q.dtI) { where.push('l.data >= ?'); params.push(q.dtI); }
       if (q.dtF) { where.push('l.data <= ?'); params.push(q.dtF); }
       if (q.busca && q.busca.trim()) { where.push('l.descricao LIKE ?'); params.push(`%${q.busca.trim()}%`); }
@@ -49,12 +54,12 @@ module.exports = function lancamentosRoutes({ db, logger, audit, Joi, readLimite
       );
 
       const lancamentos = rows.map(l => ({
-        id:           l.id,
-        conta_id:     l.conta_id,
-        tipo:         l.tipo,
-        valor:        parseFloat(l.valor),
-        descricao:    _decodeMojibake(l.descricao || ''),
-        data:         l.data instanceof Date ? l.data.toISOString().slice(0,10) : String(l.data).slice(0,10),
+        id:            l.id,
+        conta_id:      l.conta_id,
+        tipo:          l.tipo,
+        valor:         parseFloat(l.valor),
+        descricao:     _decodeMojibake(l.descricao || ''),
+        data:          l.data instanceof Date ? l.data.toISOString().slice(0,10) : String(l.data).slice(0,10),
         fornecedor_id: l.fornecedor_id || null
       }));
 
@@ -64,6 +69,8 @@ module.exports = function lancamentosRoutes({ db, logger, audit, Joi, readLimite
 
   router.post('/lancamentos', writeLimiter, jwtMiddleware, requireRole('operador'), async (req, res) => {
     if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
+    const empresaId = req.user.empresaId;
+    if (!empresaId) return res.status(403).json({ ok:false, erro:'Sem empresa associada' });
 
     const lancSchema = Joi.object({
       conta_codigo:   Joi.string().max(50).required(),
@@ -87,13 +94,19 @@ module.exports = function lancamentosRoutes({ db, logger, audit, Joi, readLimite
       let dbContaId = null;
 
       if (conta_codigo) {
-        const rows = await db.query('SELECT id FROM conta WHERE codigo = ? LIMIT 1', [String(conta_codigo)]);
+        const rows = await db.query(
+          'SELECT id FROM conta WHERE empresa_id = ? AND codigo = ? LIMIT 1',
+          [empresaId, String(conta_codigo)]
+        );
         if (rows.length > 0) dbContaId = rows[0].id;
       }
 
       if (!dbContaId && conta_ext_id !== undefined && conta_ext_id !== null) {
         const extKey = String(conta_ext_id);
-        const rows = await db.query('SELECT id FROM conta WHERE codigo = ? LIMIT 1', [extKey]);
+        const rows = await db.query(
+          'SELECT id FROM conta WHERE empresa_id = ? AND codigo = ? LIMIT 1',
+          [empresaId, extKey]
+        );
         if (rows.length > 0) {
           dbContaId = rows[0].id;
         } else if (conta_nome) {
@@ -101,13 +114,16 @@ module.exports = function lancamentosRoutes({ db, logger, audit, Joi, readLimite
           let parentId = null;
           if (partes.length > 1) {
             const codigoPai = partes.slice(0, -1).join('.');
-            const [pai] = await db.query('SELECT id FROM conta WHERE codigo = ? LIMIT 1', [codigoPai]);
+            const [pai] = await db.query(
+              'SELECT id FROM conta WHERE empresa_id = ? AND codigo = ? LIMIT 1',
+              [empresaId, codigoPai]
+            );
             if (pai) parentId = pai.id;
           }
           const nat = conta_natureza === 'Entrada' ? 'entrada' : 'saida';
           const ins = await db.execute(
-            'INSERT INTO conta (parent_id, codigo, nome, natureza, created_at) VALUES (?,?,?,?,NOW())',
-            [parentId, extKey, String(conta_nome).toUpperCase().trim(), nat]
+            'INSERT INTO conta (empresa_id, parent_id, codigo, nome, natureza, created_at) VALUES (?,?,?,?,?,NOW())',
+            [empresaId, parentId, extKey, String(conta_nome).toUpperCase().trim(), nat]
           );
           dbContaId = ins.insertId;
         }
@@ -116,8 +132,8 @@ module.exports = function lancamentosRoutes({ db, logger, audit, Joi, readLimite
       if (!dbContaId) return res.status(400).json({ ok:false, erro:'Conta não identificada' });
 
       const r = await db.execute(
-        'INSERT INTO lancamento (conta_id,data,tipo,valor,descricao,fornecedor_id,created_at) VALUES (?,?,?,?,?,?,NOW())',
-        [dbContaId, data, tipo, valor, descricao||null, fornecedor_id||null]
+        'INSERT INTO lancamento (empresa_id,conta_id,data,tipo,valor,descricao,fornecedor_id,created_at) VALUES (?,?,?,?,?,?,?,NOW())',
+        [empresaId, dbContaId, data, tipo, valor, descricao||null, fornecedor_id||null]
       );
       await audit(req, 'lancamento_criado', 'lancamento', r.insertId, { conta_codigo, data, tipo, valor, descricao: descricao || null, fornecedor_id: fornecedor_id || null });
       res.json({ ok:true, id: r.insertId });
@@ -126,16 +142,18 @@ module.exports = function lancamentosRoutes({ db, logger, audit, Joi, readLimite
 
   router.put('/lancamentos/:id', writeLimiter, jwtMiddleware, requireRole('operador'), async (req, res) => {
     if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
+    const empresaId = req.user.empresaId;
+    if (!empresaId) return res.status(403).json({ ok:false, erro:'Sem empresa associada' });
     const id = parseInt(req.params.id, 10);
     if (!id) return res.status(400).json({ ok:false, erro:'ID inválido' });
 
     const editSchema = Joi.object({
-      data:         Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required().messages({
-                      'string.pattern.base': '"data" deve estar no formato YYYY-MM-DD'
-                    }),
-      tipo:         Joi.string().valid('credito', 'debito').required(),
-      valor:        Joi.number().positive().required(),
-      descricao:    Joi.string().max(500).optional().allow('', null),
+      data:          Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required().messages({
+                       'string.pattern.base': '"data" deve estar no formato YYYY-MM-DD'
+                     }),
+      tipo:          Joi.string().valid('credito', 'debito').required(),
+      valor:         Joi.number().positive().required(),
+      descricao:     Joi.string().max(500).optional().allow('', null),
       fornecedor_id: Joi.number().integer().positive().optional().allow(null)
     });
     const { error, value: body } = editSchema.validate(req.body, { abortEarly: true, stripUnknown: true });
@@ -144,13 +162,16 @@ module.exports = function lancamentosRoutes({ db, logger, audit, Joi, readLimite
     const conn = await db.pool.getConnection();
     try {
       await conn.beginTransaction();
-      const [[row]] = await conn.query('SELECT id, data, tipo, valor, descricao, fornecedor_id FROM lancamento WHERE id = ? AND deleted_at IS NULL LIMIT 1 FOR UPDATE', [id]);
+      const [[row]] = await conn.query(
+        'SELECT id, data, tipo, valor, descricao, fornecedor_id FROM lancamento WHERE empresa_id = ? AND id = ? AND deleted_at IS NULL LIMIT 1 FOR UPDATE',
+        [empresaId, id]
+      );
       if (!row) { await conn.rollback(); return res.status(404).json({ ok:false, erro:'Lançamento não encontrado' }); }
       const before = {
-        data:         row.data instanceof Date ? row.data.toISOString().slice(0,10) : String(row.data).slice(0,10),
-        tipo:         row.tipo,
-        valor:        parseFloat(row.valor),
-        descricao:    row.descricao,
+        data:          row.data instanceof Date ? row.data.toISOString().slice(0,10) : String(row.data).slice(0,10),
+        tipo:          row.tipo,
+        valor:         parseFloat(row.valor),
+        descricao:     row.descricao,
         fornecedor_id: row.fornecedor_id || null
       };
       const fornId = body.fornecedor_id !== undefined ? (body.fornecedor_id || null) : (row.fornecedor_id || null);
@@ -172,10 +193,15 @@ module.exports = function lancamentosRoutes({ db, logger, audit, Joi, readLimite
 
   router.delete('/lancamentos/:id', writeLimiter, jwtMiddleware, requireRole('gerente'), async (req, res) => {
     if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
+    const empresaId = req.user.empresaId;
+    if (!empresaId) return res.status(403).json({ ok:false, erro:'Sem empresa associada' });
     const id = parseInt(req.params.id, 10);
     if (!id) return res.status(400).json({ ok:false, erro:'ID inválido' });
     try {
-      const rows = await db.query('SELECT id FROM lancamento WHERE id = ? AND deleted_at IS NULL LIMIT 1', [id]);
+      const rows = await db.query(
+        'SELECT id FROM lancamento WHERE empresa_id = ? AND id = ? AND deleted_at IS NULL LIMIT 1',
+        [empresaId, id]
+      );
       if (!rows.length) return res.status(404).json({ ok:false, erro:'Lançamento não encontrado' });
       await db.execute('UPDATE lancamento SET deleted_at = NOW() WHERE id = ?', [id]);
       await audit(req, 'lancamento_deletado', 'lancamento', id, { id });

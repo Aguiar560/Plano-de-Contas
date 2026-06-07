@@ -16,8 +16,10 @@ server/refresh_tokens.json
 server/users.json
 server/user_permissions.json
 
-# Banco local
-db/
+# Banco local (binários — scripts SQL em db/ são versionados)
+*.db
+*.sqlite
+*.sqlite3
 
 # Build / cache
 .cache/

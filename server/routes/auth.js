@@ -16,15 +16,28 @@ module.exports = function authRoutes({ db, logger, audit, Joi, bcrypt, jwt, user
 
   function _signAccess(user) {
     const jti = crypto.randomBytes(16).toString('hex');
-    return { token: jwt.sign({ userId: user.id, usuario: user.usuario, perfil: user.perfil, jti }, JWT_SECRET, { expiresIn: JWT_EXP }), jti };
+    return {
+      token: jwt.sign(
+        { userId: user.id, usuario: user.usuario, perfil: user.perfil, empresaId: user.empresaId || null, jti },
+        JWT_SECRET,
+        { expiresIn: JWT_EXP }
+      ),
+      jti
+    };
   }
 
   router.post('/login', authLimiter, async (req, res) => {
-    const schema = Joi.object({ usuario: Joi.string().min(1).max(100).required(), senha: Joi.string().min(1).max(200).required() });
+    const schema = Joi.object({
+      usuario:   Joi.string().min(1).max(100).required(),
+      senha:     Joi.string().min(1).max(200).required(),
+      empresaId: Joi.number().integer().positive().optional()
+    });
     const { error, value } = schema.validate(req.body);
     if (error) return res.status(400).json({ ok:false, erro: 'Preencha usuário e senha.' });
-    const { usuario, senha } = value;
-    const user = await usersDb.findByUsuario(usuario);
+    const { usuario, senha, empresaId } = value;
+    // empresaId no body permite login direto com escopo de empresa
+    // sem empresaId: busca por username globalmente (compatibilidade + superadmin)
+    const user = await usersDb.findByUsuario(usuario, empresaId || undefined);
     const GENERIC = { status:401, body:{ ok:false, erro:'Usuário ou senha inválidos.' } };
     if (!user || !user.ativo) return res.status(GENERIC.status).json(GENERIC.body);
 
@@ -41,12 +54,12 @@ module.exports = function authRoutes({ db, logger, audit, Joi, bcrypt, jwt, user
 
     await usersDb.clearLoginFailures(user.id);
     const { token } = _signAccess(user);
-    await audit(req, 'login', 'usuario', user.id, { usuario: user.usuario, perfil: user.perfil });
+    await audit(req, 'login', 'usuario', user.id, { usuario: user.usuario, perfil: user.perfil, empresaId: user.empresaId });
     const accessCookieOpts = { httpOnly: true, sameSite: 'lax', maxAge: _accessCookieMs() };
     if (COOKIE_SECURE) accessCookieOpts.secure = true;
     res.cookie('auth_token', token, accessCookieOpts);
     try { await usersDb.issueRefreshToken(res, user.id, COOKIE_SECURE); } catch (e) { logger.error('issueRefreshToken falhou', { userId: user.id, err: e && e.message }); }
-    return res.json({ ok:true, user: { id: user.id, usuario: user.usuario, nome: user.nome, perfil: user.perfil } });
+    return res.json({ ok:true, user: { id: user.id, usuario: user.usuario, nome: user.nome, perfil: user.perfil, empresaId: user.empresaId || null } });
   });
 
   router.post('/logout', jwtMiddleware, async (req, res) => {
@@ -69,11 +82,11 @@ module.exports = function authRoutes({ db, logger, audit, Joi, bcrypt, jwt, user
       const user = await usersDb.findById(info.userId);
       if (!user || !user.ativo) { res.clearCookie('refresh_token'); return res.status(401).json({ ok:false, erro:'Invalid user' }); }
       await usersDb.rotateRefreshToken(res, token, user.id, COOKIE_SECURE);
-      const { token: access } = _signAccess(user);
+      const { token: access } = _signAccess(user); // _mapRow já inclui empresaId
       const accessCookieOpts = { httpOnly: true, sameSite: 'lax', maxAge: _accessCookieMs() };
       if (COOKIE_SECURE) accessCookieOpts.secure = true;
       res.cookie('auth_token', access, accessCookieOpts);
-      await audit(req, 'token_renovado', 'usuario', user.id, { usuario: user.usuario });
+      await audit(req, 'token_renovado', 'usuario', user.id, { usuario: user.usuario, empresaId: user.empresaId });
       return res.json({ ok:true });
     } catch(e) { logger.error('Erro no refresh de token', { err: e && e.message }); return res.status(500).json({ ok:false, erro:'Erro interno' }); }
   });

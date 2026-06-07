@@ -28,7 +28,7 @@ app.use(helmet({
       styleSrcAttr:   ["'unsafe-inline'"],
       styleSrc:       ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc:         ["'self'", "data:"],
-      connectSrc:     ["'self'", "http://localhost:3000", "ws://localhost:3000", "https://viacep.com.br"],
+      connectSrc:     ["'self'", "http://localhost:3001", "ws://localhost:3001", "https://viacep.com.br"],
       fontSrc:        ["'self'", "https://fonts.gstatic.com"],
       objectSrc:      ["'none'"],
       frameAncestors: ["'none'"],
@@ -43,7 +43,7 @@ app.use(helmet({
 const API_ORIGIN = process.env.API_ORIGIN || null;
 const _corsOrigin = API_ORIGIN
   ? API_ORIGIN
-  : (process.env.NODE_ENV === 'production' ? false : 'http://localhost:3000');
+  : (process.env.NODE_ENV === 'production' ? false : 'http://localhost:3001');
 if (!API_ORIGIN && process.env.NODE_ENV === 'production') {
   logger.warn('API_ORIGIN não definida — CORS bloqueado para todas as origens externas em produção.');
 }
@@ -135,8 +135,8 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// Hierarquia: admin > gerente > operador > visualizador
-const ROLE_RANK = { admin: 4, gerente: 3, operador: 2, visualizador: 1 };
+// Hierarquia: superadmin > admin > gerente > operador > visualizador
+const ROLE_RANK = { superadmin: 5, admin: 4, gerente: 3, operador: 2, visualizador: 1 };
 function requireRole(minRole) {
   return (req, res, next) => {
     const rank = ROLE_RANK[req.user?.perfil] || 0;
@@ -145,6 +145,11 @@ function requireRole(minRole) {
     }
     next();
   };
+}
+
+function requireSuperAdmin(req, res, next) {
+  if (!req.user || req.user.perfil !== 'superadmin') return res.status(403).json({ ok:false, erro:'Forbidden — superadmin only' });
+  next();
 }
 
 // Corrige double-encoding (UTF-8 bytes gravados como latin1/cp1252)
@@ -244,6 +249,19 @@ async function _runMigrations() {
       logger.info('[security] Refresh tokens legados removidos — usuários precisarão logar novamente.');
     }
   } catch(e) { /* refresh_token pode não ter a coluna ainda em instâncias muito antigas */ }
+
+  // Multi-tenancy v4: empresa_id em tabelas de dados
+  // DEFAULT 1 faz o MySQL já preencher linhas existentes automaticamente ao adicionar a coluna
+  await addCol('conta',      'empresa_id', 'BIGINT UNSIGNED NOT NULL DEFAULT 1');
+  await addCol('lancamento', 'empresa_id', 'BIGINT UNSIGNED NOT NULL DEFAULT 1');
+  await addCol('fornecedor', 'empresa_id', 'BIGINT UNSIGNED NOT NULL DEFAULT 1');
+  await addCol('recibo',     'empresa_id', 'BIGINT UNSIGNED NOT NULL DEFAULT 1');
+  await addCol('audit_log',  'empresa_id', 'BIGINT UNSIGNED DEFAULT NULL');
+
+  await addIdx('conta',      'idx_conta_empresa',  '`empresa_id`');
+  await addIdx('lancamento', 'idx_lanc_empresa',   '`empresa_id`');
+  await addIdx('fornecedor', 'idx_forn_empresa',   '`empresa_id`');
+  await addIdx('usuario',    'idx_usuario_empresa','`empresa_id`');
 }
 const migrationsReady = _runMigrations()
   .catch(e => logger.warn('Migrações falharam', { err: e && e.message }));
@@ -303,7 +321,7 @@ if (!process.env.ENCRYPT_KEY) {
 const deps = {
   db, logger, audit, Joi, bcrypt, jwt, usersDb,
   JWT_SECRET, JWT_SECRET_PREV, JWT_EXP, COOKIE_SECURE,
-  jwtMiddleware, requireAdmin, requireRole,
+  jwtMiddleware, requireAdmin, requireRole, requireSuperAdmin,
   readLimiter, writeLimiter, authLimiter, refreshLimiter,
   _decodeMojibake, cryptoUtils, revokedTokens,
 };
@@ -313,6 +331,7 @@ app.get('/health', (req, res) => res.json({ ok: true, uptime: Math.floor(process
 
 app.use('/api', require('./routes/auth')(deps));
 app.use('/api', require('./routes/users')(deps));
+app.use('/api', require('./routes/empresas')(deps));
 app.use('/api', require('./routes/contas')(deps));
 app.use('/api', require('./routes/lancamentos')(deps));
 app.use('/api', require('./routes/fornecedores')(deps));
@@ -382,7 +401,8 @@ if (require.main === module) {
     try {
       const pool = db && db.pool ? db.pool : null;
       await usersDb.init(pool);
-      await usersDb.ensureAdmin();
+      const defaultEmpresaId = await usersDb.ensureDefaultEmpresa();
+      await usersDb.ensureAdmin(defaultEmpresaId);
       await _ensureFornecedorTable();
       await _ensureReciboTable();
     } catch(e) { console.error('usersDb init error:', e.message); }

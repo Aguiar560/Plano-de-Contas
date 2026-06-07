@@ -45,11 +45,30 @@ async function _ensureTables() {
     return Number(rows[0].c) > 0;
   }
 
+  // ── Tabela empresa ────────────────────────────────────────────────────────
+  if (!await _tableExists('empresa')) {
+    await _pool.execute(
+      `CREATE TABLE empresa (
+        id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        nome       VARCHAR(200)    NOT NULL,
+        slug       VARCHAR(100)    NOT NULL,
+        plano      VARCHAR(50)     NOT NULL DEFAULT 'basico',
+        ativo      TINYINT(1)      NOT NULL DEFAULT 1,
+        dados      TEXT            DEFAULT NULL,
+        created_at DATETIME        DEFAULT NULL,
+        updated_at DATETIME        DEFAULT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY ux_empresa_slug (slug)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8`
+    );
+  }
+
   // ── Tabela usuario ────────────────────────────────────────────────────────
   if (!await _tableExists('usuario')) {
     await _pool.execute(
       `CREATE TABLE usuario (
         id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        empresa_id      BIGINT UNSIGNED DEFAULT NULL,
         usuario         VARCHAR(50)     NOT NULL,
         nome            VARCHAR(200)    NOT NULL DEFAULT '',
         senha_hash      VARCHAR(255)    NOT NULL,
@@ -60,7 +79,8 @@ async function _ensureTables() {
         last_failed_at  BIGINT          DEFAULT NULL,
         created_at      DATETIME        DEFAULT NULL,
         PRIMARY KEY (id),
-        UNIQUE KEY ux_usuario (usuario)
+        UNIQUE KEY ux_usuario_empresa (usuario, empresa_id),
+        KEY idx_usuario_empresa (empresa_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8`
     );
   } else {
@@ -70,6 +90,7 @@ async function _ensureTables() {
     }
     // Adicionar colunas ausentes
     const cols = [
+      ['empresa_id',      `ADD COLUMN empresa_id      BIGINT UNSIGNED DEFAULT NULL AFTER id`],
       ['perfil',          `ADD COLUMN perfil          VARCHAR(20)  NOT NULL DEFAULT 'visualizador'`],
       ['ativo',           `ADD COLUMN ativo           TINYINT(1)   NOT NULL DEFAULT 1`],
       ['failed_attempts', `ADD COLUMN failed_attempts INT          NOT NULL DEFAULT 0`],
@@ -82,6 +103,18 @@ async function _ensureTables() {
       if (!await _colExists('usuario', col)) {
         await _pool.execute(`ALTER TABLE usuario ${ddl}`);
       }
+    }
+    // Migrar unicidade global → por empresa
+    const hasOldUx = await _pool.execute(
+      `SELECT COUNT(1) AS c FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='usuario' AND INDEX_NAME='ux_usuario'`
+    ).then(([r]) => Number(r[0].c) > 0).catch(() => false);
+    const hasNewUx = await _pool.execute(
+      `SELECT COUNT(1) AS c FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='usuario' AND INDEX_NAME='ux_usuario_empresa'`
+    ).then(([r]) => Number(r[0].c) > 0).catch(() => false);
+    if (hasOldUx && !hasNewUx) {
+      await _pool.execute(`ALTER TABLE usuario DROP INDEX ux_usuario, ADD UNIQUE KEY ux_usuario_empresa (usuario, empresa_id)`).catch(() => {});
+    } else if (!hasNewUx) {
+      await _pool.execute(`ALTER TABLE usuario ADD UNIQUE KEY ux_usuario_empresa (usuario, empresa_id)`).catch(() => {});
     }
   }
 
@@ -189,20 +222,47 @@ function _markMigrated() {
   try { fs.writeFileSync(MIGRATED_FILE, new Date().toISOString()); } catch(e) {}
 }
 
-// ── Garantir admin padrão ─────────────────────────────────────────────────
-async function ensureAdmin() {
+// ── Garantir empresa padrão e admin ──────────────────────────────────────
+async function ensureDefaultEmpresa() {
+  if (!_pool) return 1;
+  const [[{ cnt }]] = await _pool.execute('SELECT COUNT(1) AS cnt FROM empresa WHERE id = 1');
+  if (cnt === 0) {
+    await _pool.execute(
+      `INSERT INTO empresa (id, nome, slug, plano, ativo, created_at) VALUES (1,'Empresa Padrão','default','basico',1,NOW())`
+    );
+  }
+  // Backfill automático: usuários existentes sem empresa → empresa padrão
+  // Roda toda vez (UPDATE de zero linhas é no-op), garante migração sem script manual
+  await _pool.execute(
+    `UPDATE usuario SET empresa_id = 1 WHERE empresa_id IS NULL AND perfil != 'superadmin'`
+  ).catch(() => {});
+  return 1;
+}
+
+async function ensureAdmin(empresaId = 1) {
   if (!_pool) {
     // fallback: usar arquivo JSON
     return _ensureAdminJson();
   }
-  const [rows] = await _pool.execute('SELECT id FROM usuario WHERE usuario = ? LIMIT 1', ['admin']);
+  // Superadmin da plataforma (empresa_id = NULL, perfil = 'superadmin')
+  const [sa] = await _pool.execute(`SELECT id FROM usuario WHERE usuario = 'superadmin' AND empresa_id IS NULL LIMIT 1`);
+  if (sa.length === 0) {
+    const hash = bcrypt.hashSync('superadmin', 10);
+    await _pool.execute(
+      `INSERT INTO usuario (empresa_id, usuario, nome, senha_hash, perfil, ativo, created_at) VALUES (NULL,?,?,?,?,1,NOW())`,
+      ['superadmin', 'Super Administrador', hash, 'superadmin']
+    );
+    console.log('Default superadmin created (usuario=superadmin, senha=superadmin) — TROQUE IMEDIATAMENTE');
+  }
+  // Admin da empresa padrão
+  const [rows] = await _pool.execute('SELECT id FROM usuario WHERE usuario = ? AND empresa_id = ? LIMIT 1', ['admin', empresaId]);
   if (rows.length === 0) {
     const hash = bcrypt.hashSync('admin', 10);
     await _pool.execute(
-      `INSERT INTO usuario (usuario, nome, senha_hash, perfil, ativo, created_at) VALUES (?,?,?,?,1,NOW())`,
-      ['admin', 'Administrador', hash, 'admin']
+      `INSERT INTO usuario (empresa_id, usuario, nome, senha_hash, perfil, ativo, created_at) VALUES (?,?,?,?,?,1,NOW())`,
+      [empresaId, 'admin', 'Administrador', hash, 'admin']
     );
-    console.log('Default admin created (usuario=admin, senha=admin)');
+    console.log(`Default admin created for empresa ${empresaId} (usuario=admin, senha=admin)`);
   }
 }
 
@@ -218,12 +278,30 @@ function _ensureAdminJson() {
 
 // ── CRUD de usuários ──────────────────────────────────────────────────────
 
-async function findByUsuario(usuario) {
+// empresaId = null → busca superadmin (sem empresa)
+// empresaId = número → busca no escopo da empresa
+async function findByUsuario(usuario, empresaId) {
   if (!_pool) return _loadJson().find(u => u.usuario.toLowerCase() === usuario.toLowerCase()) || null;
-  const [rows] = await _pool.execute(
-    'SELECT * FROM usuario WHERE usuario = ? LIMIT 1',
-    [usuario.toLowerCase()]
-  );
+  let rows;
+  if (empresaId === null || empresaId === undefined) {
+    // login sem empresa (superadmin) ou fallback legado
+    [rows] = await _pool.execute(
+      'SELECT * FROM usuario WHERE usuario = ? AND empresa_id IS NULL LIMIT 1',
+      [usuario.toLowerCase()]
+    );
+    if (!rows[0]) {
+      // tenta em qualquer empresa (compatibilidade: usuário único mesmo após migração)
+      [rows] = await _pool.execute(
+        'SELECT * FROM usuario WHERE usuario = ? LIMIT 1',
+        [usuario.toLowerCase()]
+      );
+    }
+  } else {
+    [rows] = await _pool.execute(
+      'SELECT * FROM usuario WHERE usuario = ? AND empresa_id = ? LIMIT 1',
+      [usuario.toLowerCase(), empresaId]
+    );
+  }
   return rows[0] ? _mapRow(rows[0]) : null;
 }
 
@@ -233,9 +311,17 @@ async function findById(id) {
   return rows[0] ? _mapRow(rows[0]) : null;
 }
 
-async function listAll() {
+async function listAll(empresaId) {
   if (!_pool) return _loadJson().map(u => _mapJsonUser(u));
-  const [rows] = await _pool.execute('SELECT id, usuario, nome, perfil, ativo, lock_until FROM usuario ORDER BY id');
+  let rows;
+  if (empresaId !== undefined && empresaId !== null) {
+    [rows] = await _pool.execute(
+      'SELECT id, usuario, nome, perfil, ativo, lock_until FROM usuario WHERE empresa_id = ? ORDER BY id',
+      [empresaId]
+    );
+  } else {
+    [rows] = await _pool.execute('SELECT id, usuario, nome, perfil, ativo, lock_until FROM usuario ORDER BY id');
+  }
   return rows.map(r => ({
     id:        r.id,
     usuario:   r.usuario,
@@ -246,7 +332,7 @@ async function listAll() {
   }));
 }
 
-async function createUser({ usuario, nome, senhaHash, perfil }) {
+async function createUser({ usuario, nome, senhaHash, perfil, empresaId }) {
   if (!_pool) {
     const users = _loadJson();
     const id = Date.now();
@@ -256,13 +342,13 @@ async function createUser({ usuario, nome, senhaHash, perfil }) {
     return id;
   }
   const [r] = await _pool.execute(
-    `INSERT INTO usuario (usuario, nome, senha_hash, perfil, ativo, created_at) VALUES (?,?,?,?,1,NOW())`,
-    [usuario.toLowerCase().trim(), nome.trim(), senhaHash, perfil]
+    `INSERT INTO usuario (empresa_id, usuario, nome, senha_hash, perfil, ativo, created_at) VALUES (?,?,?,?,?,1,NOW())`,
+    [empresaId || null, usuario.toLowerCase().trim(), nome.trim(), senhaHash, perfil]
   );
   return r.insertId;
 }
 
-async function updateUser(id, fields) {
+async function updateUser(id, fields, empresaId) {
   if (!_pool) {
     const users = _loadJson();
     const u = users.find(x => x.id === id);
@@ -278,7 +364,9 @@ async function updateUser(id, fields) {
   if (fields.ativo  !== undefined) { set.push('ativo = ?');  vals.push(fields.ativo ? 1 : 0); }
   if (!set.length) return true;
   vals.push(id);
-  await _pool.execute(`UPDATE usuario SET ${set.join(', ')} WHERE id = ?`, vals);
+  const whereParts = ['id = ?'];
+  if (empresaId !== undefined) { whereParts.push('empresa_id = ?'); vals.push(empresaId); }
+  await _pool.execute(`UPDATE usuario SET ${set.join(', ')} WHERE ${whereParts.join(' AND ')}`, vals);
   return true;
 }
 
@@ -295,14 +383,18 @@ async function updatePassword(id, newHash) {
   return true;
 }
 
-async function deleteUser(id) {
+async function deleteUser(id, empresaId) {
   if (!_pool) {
     let users = _loadJson();
     users = users.filter(x => x.id !== id);
     _saveJson(users);
     return true;
   }
-  await _pool.execute('DELETE FROM usuario WHERE id = ?', [id]);
+  if (empresaId !== undefined) {
+    await _pool.execute('DELETE FROM usuario WHERE id = ? AND empresa_id = ?', [id, empresaId]);
+  } else {
+    await _pool.execute('DELETE FROM usuario WHERE id = ?', [id]);
+  }
   return true;
 }
 
@@ -567,6 +659,7 @@ function _saveRefreshJson(obj) {
 function _mapRow(r) {
   return {
     id:             r.id,
+    empresaId:      r.empresa_id || null,
     usuario:        r.usuario,
     nome:           r.nome,
     senhaHash:      r.senha_hash,
@@ -591,6 +684,7 @@ function _mapJsonUser(u) {
 
 module.exports = {
   init,
+  ensureDefaultEmpresa,
   ensureAdmin,
   findByUsuario,
   findById,

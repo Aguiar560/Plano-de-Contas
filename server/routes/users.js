@@ -6,44 +6,57 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
   const router = express.Router();
 
   router.get('/users', jwtMiddleware, requireAdmin, async (req, res) => {
+    const empresaId = req.user.empresaId;
     try {
-      const users = await usersDb.listAll();
+      const users = await usersDb.listAll(empresaId);
       res.json({ ok:true, users: users.map(u=>({ id:u.id, usuario:u.usuario, nome:u.nome, perfil:u.perfil, ativo:u.ativo, lockUntil: u.lockUntil || null })) });
     } catch(e) { res.status(500).json({ ok:false, erro:'Erro ao listar usuários' }); }
   });
 
   router.post('/users', jwtMiddleware, requireAdmin, async (req, res) => {
-    const schema = Joi.object({ usuario: Joi.string().alphanum().min(3).max(50).required(), nome: Joi.string().min(1).max(200).required(), senha: Joi.string().min(6).max(200).required(), perfil: Joi.string().valid('admin','gerente','operador','visualizador').required() });
+    const empresaId = req.user.empresaId;
+    if (!empresaId) return res.status(403).json({ ok:false, erro:'Sem empresa associada' });
+    const schema = Joi.object({
+      usuario: Joi.string().alphanum().min(3).max(50).required(),
+      nome:    Joi.string().min(1).max(200).required(),
+      senha:   Joi.string().min(6).max(200).required(),
+      perfil:  Joi.string().valid('admin','gerente','operador','visualizador').required()
+    });
     const { error, value } = schema.validate(req.body);
     if (error) return res.status(400).json({ ok:false, erro:'Dados inválidos' });
     const { usuario, nome, senha, perfil } = value;
     try {
-      const exists = await usersDb.findByUsuario(usuario);
-      if (exists) return res.status(400).json({ ok:false, erro:'Usuário já existe' });
+      const exists = await usersDb.findByUsuario(usuario, empresaId);
+      if (exists) return res.status(400).json({ ok:false, erro:'Usuário já existe nesta empresa' });
       const hash = bcrypt.hashSync(senha, 10);
-      const id = await usersDb.createUser({ usuario: usuario.toLowerCase().trim(), nome: nome.trim(), senhaHash: hash, perfil });
+      const id = await usersDb.createUser({ usuario: usuario.toLowerCase().trim(), nome: nome.trim(), senhaHash: hash, perfil, empresaId });
       await audit(req, 'create_user', 'usuario', id, { usuario: usuario.toLowerCase().trim(), nome: nome.trim(), perfil });
       res.json({ ok:true, user: { id, usuario: usuario.toLowerCase().trim(), nome: nome.trim(), perfil } });
     } catch(e) { res.status(500).json({ ok:false, erro:'Erro ao criar usuário' }); }
   });
 
   router.put('/users/:id', jwtMiddleware, requireAdmin, async (req, res) => {
-    const id = +req.params.id; const { perfil, ativo } = req.body;
+    const empresaId = req.user.empresaId;
+    const id = +req.params.id;
+    const { perfil, ativo } = req.body;
     try {
       const u = await usersDb.findById(id);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
+      // Admin só pode editar usuários da própria empresa
+      if (empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Forbidden' });
       if (u.perfil==='admin' && ativo===false) {
-        const all = await usersDb.listAll();
+        const all = await usersDb.listAll(empresaId);
         const admins = all.filter(x=>x.perfil==='admin' && x.ativo);
         if (admins.length<=1) return res.status(400).json({ ok:false, erro:'Não é possível desativar o único admin' });
       }
-      await usersDb.updateUser(id, { perfil: perfil || u.perfil, ativo: typeof ativo === 'boolean' ? ativo : u.ativo });
+      await usersDb.updateUser(id, { perfil: perfil || u.perfil, ativo: typeof ativo === 'boolean' ? ativo : u.ativo }, empresaId);
       await audit(req, 'update_user', 'usuario', id, { before: { perfil: u.perfil, ativo: u.ativo }, after: { perfil: perfil || u.perfil, ativo: typeof ativo === 'boolean' ? ativo : u.ativo } });
       res.json({ ok:true });
     } catch(e) { res.status(500).json({ ok:false, erro:'Erro ao atualizar usuário' }); }
   });
 
   router.post('/users/:id/reset-password', jwtMiddleware, requireAdmin, async (req, res) => {
+    const empresaId = req.user.empresaId;
     const schema = Joi.object({ nova: Joi.string().min(6).max(200).required() });
     const { error, value } = schema.validate(req.body);
     const id = +req.params.id;
@@ -51,6 +64,7 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
     try {
       const u = await usersDb.findById(id);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
+      if (empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Forbidden' });
       await usersDb.updatePassword(id, bcrypt.hashSync(value.nova, 10));
       await audit(req, 'reset_password', 'usuario', id, { targetUsuario: u.usuario });
       res.json({ ok:true });
@@ -71,10 +85,12 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
   });
 
   router.post('/users/:id/unlock', jwtMiddleware, requireAdmin, async (req, res) => {
+    const empresaId = req.user.empresaId;
     const id = +req.params.id;
     try {
       const u = await usersDb.findById(id);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
+      if (empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Forbidden' });
       await usersDb.unlockUser(id);
       await audit(req, 'unlock_user', 'usuario', id, { targetUsuario: u.usuario });
       res.json({ ok:true });
@@ -82,16 +98,18 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
   });
 
   router.delete('/users/:id', jwtMiddleware, requireAdmin, async (req, res) => {
+    const empresaId = req.user.empresaId;
     const id = +req.params.id;
     try {
       const u = await usersDb.findById(id);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
+      if (empresaId && u.empresaId !== empresaId) return res.status(403).json({ ok:false, erro:'Forbidden' });
       if (u.perfil === 'admin') {
-        const all = await usersDb.listAll();
+        const all = await usersDb.listAll(empresaId);
         const admins = all.filter(x=>x.perfil==='admin' && x.ativo);
         if (admins.length <= 1) return res.status(400).json({ ok:false, erro:'Não é possível remover o último administrador.' });
       }
-      await usersDb.deleteUser(id);
+      await usersDb.deleteUser(id, empresaId);
       await audit(req, 'remove_user', 'usuario', id, { usuario: u.usuario, perfil: u.perfil });
       res.json({ ok:true });
     } catch(e) { res.status(500).json({ ok:false, erro:'Erro ao remover usuário' }); }
@@ -122,6 +140,7 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
   });
 
   router.get('/audit', readLimiter, jwtMiddleware, requireAdmin, async (req, res) => {
+    const empresaId = req.user.empresaId;
     const qSchema = Joi.object({
       action:      Joi.string().max(100).optional().allow(''),
       entityType:  Joi.string().valid('conta','lancamento','usuario').optional().allow(''),
@@ -142,6 +161,7 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
         actorUserId: q.actorUserId || undefined,
         dtI:         q.dtI         || undefined,
         dtF:         q.dtF         || undefined,
+        empresaId:   empresaId     || undefined,
         page:  q.page,
         limit: q.limit
       });
@@ -175,13 +195,14 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
   });
 
   router.delete('/me', writeLimiter, jwtMiddleware, async (req, res) => {
+    const empresaId = req.user.empresaId;
     const { senha } = req.body || {};
     if (!senha) return res.status(400).json({ ok:false, erro:'Confirme com sua senha para excluir a conta.' });
     try {
       const u = await usersDb.findById(req.user.userId);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
       if (u.perfil === 'admin') {
-        const all = await usersDb.listAll();
+        const all = await usersDb.listAll(empresaId);
         if (all.filter(x => x.perfil === 'admin' && x.ativo).length <= 1) {
           return res.status(400).json({ ok:false, erro:'Não é possível excluir o único administrador.' });
         }
@@ -189,11 +210,10 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
       if (!bcrypt.compareSync(senha, u.senhaHash)) {
         return res.status(400).json({ ok:false, erro:'Senha incorreta.' });
       }
-      // Anonimizar entradas de audit antes de remover (obrigação de rastreio financeiro)
       if (db) {
         await db.pool.query('UPDATE audit_log SET actor_user_id = NULL WHERE actor_user_id = ?', [u.id]);
       }
-      await usersDb.deleteUser(u.id);
+      await usersDb.deleteUser(u.id, empresaId);
       await audit(req, 'self_delete', 'usuario', u.id, { usuario: u.usuario });
       res.clearCookie('auth_token');
       res.clearCookie('refresh_token');
