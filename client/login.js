@@ -314,8 +314,13 @@ function _bindLoginForm() {
     _mostrarApp();
     _initHeaderSaldo();
 
-    // Re-inicializar a árvore com permissões atualizadas
-    if (typeof renderTree === 'function') {
+    // Recarregar contas do banco após login (primeira carga falhou sem autenticação)
+    if (typeof repo !== 'undefined' && typeof repo.carregarDoBanco === 'function') {
+      repo.carregarDoBanco().then(() => {
+        if (typeof renderTree === 'function') renderTree();
+        if (typeof setShowOnly === 'function') try { setShowOnly('all'); } catch(e) { renderTree(); }
+      });
+    } else if (typeof renderTree === 'function') {
       renderTree();
     }
   });
@@ -581,7 +586,7 @@ function _bindGerenciarUsuarios() {
     const strength = _passwordStrength(senha);
     if (strength.score < 2) { showToast('Senha fraca. Use ao menos 6 caracteres, misture letras e números.', 'warning'); return; }
 
-    const base = (typeof API_BASE !== 'undefined') ? API_BASE : ((location && location.protocol === 'file:') ? 'http://localhost:3000' : '');
+    const base = (typeof API_BASE !== 'undefined') ? API_BASE : ((location && location.protocol === 'file:') ? 'http://localhost:3001' : '');
     const resp = await fetch(base + '/api/users', { method: 'POST', credentials: 'include', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ usuario, nome, senha, perfil }) });
     const data = await resp.json(); if (!data.ok) { showToast(data.erro||'Erro', 'error'); return; }
     showToast(`Usuário "${usuario}" criado com sucesso!`, 'success');
@@ -691,7 +696,7 @@ function _bindRedefinirSenha() {
       erroEl.style.display = 'flex'; return;
     }
 
-    const base = (typeof API_BASE !== 'undefined') ? API_BASE : ((location && location.protocol === 'file:') ? 'http://localhost:3000' : '');
+    const base = (typeof API_BASE !== 'undefined') ? API_BASE : ((location && location.protocol === 'file:') ? 'http://localhost:3001' : '');
     const resp = await fetch(base + '/api/users/' + userId + '/reset-password', { method: 'POST', credentials: 'include', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ nova }) });
     const data = await resp.json(); if (!data.ok) { erroMsg.textContent = data.erro || 'Erro'; erroEl.style.display = 'flex'; return; }
     fechar(); showToast('Senha redefinida com sucesso!', 'success'); return;
