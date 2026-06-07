@@ -3192,7 +3192,9 @@ body.sidebar-open .btn-hamburger span:nth-child(3) { transform: translateY(-7px)
   body.sidebar-open .sidebar { transform: translateX(0); }
   body.sidebar-open .sidebar-overlay { display: block; }
 
-  /* ── App shell unchanged (flex 100vh) — sidebar is fixed so app-right fills full width via flex:1 ── */
+  /* ── App shell: revert old 680px column layout (sidebar is now position:fixed) ── */
+  .app-shell { flex-direction: row; }
+  .sidebar-nav { flex-direction: column; overflow-x: unset; }
 
   /* ── Topbar ── */
   .topbar { height: 54px; padding: 0 10px; gap: 6px; }
@@ -3239,8 +3241,8 @@ body.sidebar-open .btn-hamburger span:nth-child(3) { transform: translateY(-7px)
   table { min-width: 500px; }
   th, td { padding: 8px 10px; font-size: 12px; }
 
-  /* ── Modals: bottom-sheet on mobile ── */
-  .modal-overlay { align-items: flex-end; padding: 0; }
+  /* ── Modals: bottom-sheet on mobile, topbar always visible ── */
+  .modal-overlay { align-items: flex-end; padding: 0; top: 54px; }
   .modal,
   .modal-xs, .modal-sm, .modal-md, .modal-lg {
     width: 100% !important;
