@@ -792,6 +792,10 @@
               <span class="report-type-name">Orçamento vs Realizado</span>
               <span class="report-type-desc">Execução do orçamento por categoria</span>
             </button>
+            <button class="report-type-btn" data-relview="resumo_diario">
+              <span class="report-type-name">Resumo Diário</span>
+              <span class="report-type-desc">Saldo inicial, entradas, saídas e saldo final por dia</span>
+            </button>
 
             <div class="report-sidebar-section-title" style="margin-top:8px">Período</div>
 
@@ -824,6 +828,7 @@
               <option value="fluxo">Fluxo de Caixa</option>
               <option value="estrutura">Estrutura do Plano</option>
               <option value="orcamento">Orçamento vs Realizado</option>
+              <option value="resumo_diario">Resumo Diário</option>
             </select>
           </div>
 
@@ -1416,6 +1421,37 @@
             <button id="btnConfirmarRedefinirSenha" class="btn btn-primary" data-userid="">Redefinir</button>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Primeiro Login — Redefinir Senha (não pode ser fechado) -->
+<div class="modal-overlay" id="modalPrimeiroLogin" style="display:none;background:rgba(0,0,0,0.7)" role="dialog" aria-modal="true" aria-labelledby="primeiroLoginTitulo">
+  <div class="modal modal-xs">
+    <div class="modal-header" style="border-bottom:3px solid #f59e0b">
+      <h2 id="primeiroLoginTitulo" style="display:flex;align-items:center;gap:8px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Redefinir Senha Obrigatório
+      </h2>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:#64748b;margin-bottom:16px">Por segurança, você precisa definir uma nova senha antes de continuar.</p>
+      <div style="margin-bottom:12px">
+        <label class="input-label">Nova senha <small>(mín. 4 chars)</small></label>
+        <input type="password" id="primeiroLoginSenha" class="input-text" placeholder="••••••" maxlength="50" autocomplete="new-password"/>
+        <div class="pw-strength" id="primeiroLoginPwStrength"><i style="width:0%"></i></div>
+      </div>
+      <div style="margin-bottom:16px">
+        <label class="input-label">Confirmar nova senha</label>
+        <input type="password" id="primeiroLoginConfirmar" class="input-text" placeholder="••••••" maxlength="50" autocomplete="new-password"/>
+      </div>
+      <div class="login-error" id="primeiroLoginErro" style="display:none;margin-bottom:12px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="primeiroLoginErroMsg"></span>
+      </div>
+      <div class="modal-footer-btns">
+        <button id="btnConfirmarPrimeiroLogin" class="btn btn-primary" style="width:100%">Salvar e Continuar</button>
       </div>
     </div>
   </div>

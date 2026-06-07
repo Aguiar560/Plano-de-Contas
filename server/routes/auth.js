@@ -59,7 +59,7 @@ module.exports = function authRoutes({ db, logger, audit, Joi, bcrypt, jwt, user
     if (COOKIE_SECURE) accessCookieOpts.secure = true;
     res.cookie('auth_token', token, accessCookieOpts);
     try { await usersDb.issueRefreshToken(res, user.id, COOKIE_SECURE); } catch (e) { logger.error('issueRefreshToken falhou', { userId: user.id, err: e && e.message }); }
-    return res.json({ ok:true, user: { id: user.id, usuario: user.usuario, nome: user.nome, perfil: user.perfil, empresaId: user.empresaId || null } });
+    return res.json({ ok:true, mustChangePassword: user.mustChangePassword || false, user: { id: user.id, usuario: user.usuario, nome: user.nome, perfil: user.perfil, empresaId: user.empresaId || null } });
   });
 
   router.post('/logout', jwtMiddleware, async (req, res) => {

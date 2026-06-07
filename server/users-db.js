@@ -665,9 +665,10 @@ function _mapRow(r) {
     senhaHash:      r.senha_hash,
     perfil:         r.perfil,
     ativo:          !!r.ativo,
-    failedAttempts: r.failed_attempts || 0,
-    lockUntil:      r.lock_until || null,
-    lastFailedAt:   r.last_failed_at || null
+    failedAttempts:      r.failed_attempts || 0,
+    lockUntil:           r.lock_until || null,
+    lastFailedAt:        r.last_failed_at || null,
+    mustChangePassword:  !!r.must_change_password
   };
 }
 

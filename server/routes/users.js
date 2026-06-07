@@ -71,6 +71,20 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
     } catch(e) { res.status(500).json({ ok:false, erro:'Erro ao redefinir senha' }); }
   });
 
+  router.post('/me/first-password', writeLimiter, jwtMiddleware, async (req, res) => {
+    const { nova } = req.body;
+    if (!nova || nova.length < 4) return res.status(400).json({ ok:false, erro:'Senha muito curta (mínimo 4 caracteres)' });
+    try {
+      const u = await usersDb.findById(req.user.userId);
+      if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
+      const hash = bcrypt.hashSync(nova, 10);
+      await usersDb.updatePassword(u.id, hash);
+      if (db) await db.execute('UPDATE usuario SET must_change_password = 0 WHERE id = ?', [u.id]);
+      await audit(req, 'first_password_set', 'usuario', u.id, { usuario: u.usuario });
+      return res.json({ ok:true });
+    } catch(e) { res.status(500).json({ ok:false, erro:'Erro ao definir senha' }); }
+  });
+
   router.post('/me/change-password', writeLimiter, jwtMiddleware, async (req, res) => {
     const { atual, nova } = req.body;
     if (!atual || !nova) return res.status(400).json({ ok:false, erro:'Campos obrigatórios' });

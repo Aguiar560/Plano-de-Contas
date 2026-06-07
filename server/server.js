@@ -262,6 +262,9 @@ async function _runMigrations() {
   await addIdx('lancamento', 'idx_lanc_empresa',   '`empresa_id`');
   await addIdx('fornecedor', 'idx_forn_empresa',   '`empresa_id`');
   await addIdx('usuario',    'idx_usuario_empresa','`empresa_id`');
+
+  // Primeiro login: forçar troca de senha
+  await addCol('usuario', 'must_change_password', 'TINYINT(1) NOT NULL DEFAULT 0');
 }
 const migrationsReady = _runMigrations()
   .catch(e => logger.warn('Migrações falharam', { err: e && e.message }));

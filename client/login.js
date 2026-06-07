@@ -311,19 +311,80 @@ function _bindLoginForm() {
     if (remember && typeof auth.rememberLogin === 'function') {
       auth.rememberLogin(resultado.user.id, 30);
     }
-    _mostrarApp();
-    _initHeaderSaldo();
-
-    // Recarregar contas do banco após login (primeira carga falhou sem autenticação)
-    if (typeof repo !== 'undefined' && typeof repo.carregarDoBanco === 'function') {
-      repo.carregarDoBanco().then(() => {
-        if (typeof renderTree === 'function') renderTree();
-        if (typeof setShowOnly === 'function') try { setShowOnly('all'); } catch(e) { renderTree(); }
-      });
-    } else if (typeof renderTree === 'function') {
-      renderTree();
+    // Primeiro login: forçar redefinição de senha antes de entrar no app
+    if (resultado.mustChangePassword) {
+      _mostrarApp();
+      _abrirPrimeiroLogin();
+      return;
     }
+
+    _entrarNoApp();
   });
+}
+
+function _entrarNoApp() {
+  _mostrarApp();
+  _initHeaderSaldo();
+  if (typeof repo !== 'undefined' && typeof repo.carregarDoBanco === 'function') {
+    repo.carregarDoBanco().then(() => {
+      if (typeof renderTree === 'function') renderTree();
+      if (typeof setShowOnly === 'function') try { setShowOnly('all'); } catch(e) { renderTree(); }
+    });
+  } else if (typeof renderTree === 'function') {
+    renderTree();
+  }
+}
+
+function _abrirPrimeiroLogin() {
+  const modal = document.getElementById('modalPrimeiroLogin');
+  if (!modal) { _entrarNoApp(); return; }
+  document.getElementById('primeiroLoginSenha').value    = '';
+  document.getElementById('primeiroLoginConfirmar').value = '';
+  document.getElementById('primeiroLoginErro').style.display = 'none';
+  modal.style.display = 'flex';
+  setTimeout(() => document.getElementById('primeiroLoginSenha').focus(), 80);
+
+  const btn = document.getElementById('btnConfirmarPrimeiroLogin');
+  btn.onclick = async () => {
+    const nova     = document.getElementById('primeiroLoginSenha').value;
+    const confirmar = document.getElementById('primeiroLoginConfirmar').value;
+    const erroEl   = document.getElementById('primeiroLoginErro');
+    const erroMsg  = document.getElementById('primeiroLoginErroMsg');
+    erroEl.style.display = 'none';
+
+    if (!nova || nova.length < 4) {
+      erroMsg.textContent = 'A senha deve ter no mínimo 4 caracteres.';
+      erroEl.style.display = 'flex'; return;
+    }
+    if (nova !== confirmar) {
+      erroMsg.textContent = 'As senhas não coincidem.';
+      erroEl.style.display = 'flex'; return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Salvando…';
+    const base = (typeof API_BASE !== 'undefined') ? API_BASE : '';
+    try {
+      const resp = await fetch(base + '/api/users/me/first-password', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nova })
+      });
+      const data = await resp.json();
+      if (!data.ok) {
+        erroMsg.textContent = data.erro || 'Erro ao salvar senha.';
+        erroEl.style.display = 'flex';
+        btn.disabled = false; btn.textContent = 'Salvar e Continuar'; return;
+      }
+    } catch(e) {
+      erroMsg.textContent = 'Serviço indisponível.';
+      erroEl.style.display = 'flex';
+      btn.disabled = false; btn.textContent = 'Salvar e Continuar'; return;
+    }
+
+    modal.style.display = 'none';
+    _entrarNoApp();
+  };
 }
 
 function _mostrarErroLogin(msg) {
@@ -628,6 +689,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const redefPw = document.getElementById('redefinirSenhaInput');
   if (redefPw) redefPw.addEventListener('input', e => _updateStrengthBar('redefinirPwStrength', e.target.value));
+
+  const primPw = document.getElementById('primeiroLoginSenha');
+  if (primPw) primPw.addEventListener('input', e => _updateStrengthBar('primeiroLoginPwStrength', e.target.value));
 
   // Interceptar confirmar troca de senha para validar força
   // Para trocar senha, o handler do botão está registrado em _bindTrocarSenha.

@@ -79,8 +79,8 @@ async function sha256(text) {
 // ── Gerenciador de Autenticação ────────────────────────────────────────────
 const auth = (function () {
 
-  // API base: quando a página é aberta via file:// usamos http://localhost:3000
-  const API_BASE = (location && location.protocol === 'file:') ? 'http://localhost:3000' : '';
+  // API base: quando a página é aberta via file:// usamos http://localhost:3001
+  const API_BASE = (location && location.protocol === 'file:') ? 'http://localhost:3001' : '';
   // Tornar API_BASE disponível globalmente para outros scripts
   try { window.API_BASE = API_BASE; } catch (e) {}
 
@@ -90,7 +90,7 @@ const auth = (function () {
    * Retorna o Response do fetch (não faz json() automaticamente).
    */
   async function _apiFetch(path, opts = {}) {
-    const base = (typeof API_BASE !== 'undefined') ? API_BASE : ((location && location.protocol === 'file:') ? 'http://localhost:3000' : '');
+    const base = (typeof API_BASE !== 'undefined') ? API_BASE : ((location && location.protocol === 'file:') ? 'http://localhost:3001' : '');
     const url = (path.startsWith('http://') || path.startsWith('https://')) ? path : (base + path);
     const headers = Object.assign({}, opts.headers || {});
     // O cookie httpOnly auth_token é enviado automaticamente pelo browser com credentials:'include'
@@ -270,7 +270,7 @@ const auth = (function () {
           if (pr.ok) { const pd = await pr.json(); if (pd && pd.ok) permissions = pd.permissions || {}; }
         } catch {}
         _saveSession(data.user, false, permissions);
-        return { ok: true, user: data.user };
+        return { ok: true, user: data.user, mustChangePassword: data.mustChangePassword || false };
       }
       return { ok: false, erro: GENERIC_ERR };
     } catch (e) {
