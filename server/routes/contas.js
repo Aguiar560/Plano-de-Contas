@@ -187,8 +187,9 @@ module.exports = function contasRoutes({ db, logger, audit, Joi, readLimiter, wr
       if (body.nome !== undefined) { fields.push('nome = ?'); params.push(body.nome.toUpperCase().trim()); }
       if (body.orcamento !== undefined) { fields.push('orcamento = ?'); params.push(body.orcamento ?? null); }
       params.push(row.id);
+      params.push(empresaId);
       fields.push('updated_at = NOW()');
-      await conn.execute(`UPDATE conta SET ${fields.join(', ')} WHERE id = ?`, params);
+      await conn.execute(`UPDATE conta SET ${fields.join(', ')} WHERE id = ? AND empresa_id = ?`, params);
       await conn.commit();
       const after = { ...(body.nome !== undefined && { nome: body.nome.toUpperCase().trim() }), ...(body.orcamento !== undefined && { orcamento: body.orcamento ?? null }) };
       await audit(req, 'conta_editada', 'conta', codigo, { before, after });
@@ -222,7 +223,7 @@ module.exports = function contasRoutes({ db, logger, audit, Joi, readLimiter, wr
       );
       if (qtd > 0) { await conn.rollback(); return res.status(409).json({ ok:false, erro:`Conta "${conta.nome}" possui ${qtd} subconta(s) ativa(s). Remova-as primeiro.` }); }
 
-      await conn.execute('UPDATE conta SET deleted_at = NOW() WHERE id = ?', [conta.id]);
+      await conn.execute('UPDATE conta SET deleted_at = NOW() WHERE id = ? AND empresa_id = ?', [conta.id, empresaId]);
       await conn.execute('UPDATE lancamento SET deleted_at = NOW() WHERE empresa_id = ? AND conta_id = ? AND deleted_at IS NULL', [empresaId, conta.id]);
       await conn.commit();
       await audit(req, 'conta_deletada', 'conta', codigo, { codigo, nome: conta.nome });

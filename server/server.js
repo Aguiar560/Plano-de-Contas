@@ -88,11 +88,46 @@ const JWT_EXP = process.env.JWT_EXP || '30m';
 const COOKIE_SECURE = (process.env.NODE_ENV === 'production') || (process.env.COOKIE_SECURE === 'true');
 
 // ── Blacklist de tokens revogados (logout real) ───────────────────────────
-// Map: jti → expiresAtMs. Limpo periodicamente para não crescer indefinidamente.
+// L1: Map em memória (lookup O(1)). L2: tabela revoked_token no banco.
+// Ao reiniciar o servidor, os JTIs são recarregados do banco para o Map.
 const revokedTokens = new Map();
-setInterval(() => {
+
+// Persiste um JTI revogado no Map e no banco (async, não bloqueia o handler).
+async function revokeJti(jti, expiresAtMs) {
+  revokedTokens.set(jti, expiresAtMs);
+  if (!db) return;
+  try {
+    await db.execute(
+      'INSERT IGNORE INTO revoked_token (jti, expires_at) VALUES (?, ?)',
+      [jti, new Date(expiresAtMs)]
+    );
+  } catch (e) {
+    logger.warn('[auth] Falha ao persistir JTI revogado no banco', { err: e && e.message });
+  }
+}
+
+// Recarrega JTIs ainda válidos do banco para o Map (chamado no startup).
+async function loadRevokedJtis() {
+  if (!db) return;
+  try {
+    const rows = await db.query(
+      'SELECT jti, expires_at FROM revoked_token WHERE expires_at > NOW()'
+    );
+    for (const r of rows) revokedTokens.set(r.jti, new Date(r.expires_at).getTime());
+    if (rows.length > 0) logger.info(`[auth] ${rows.length} JTI(s) revogado(s) recarregado(s) do banco`);
+  } catch (e) {
+    logger.warn('[auth] Falha ao carregar JTIs revogados do banco', { err: e && e.message });
+  }
+}
+
+// Limpeza periódica: expira entradas do Map e da tabela no banco.
+setInterval(async () => {
   const now = Date.now();
   for (const [jti, exp] of revokedTokens) if (exp < now) revokedTokens.delete(jti);
+  if (db) {
+    try { await db.execute('DELETE FROM revoked_token WHERE expires_at <= NOW()'); }
+    catch (e) { /* silencia — não crítico */ }
+  }
 }, 5 * 60 * 1000).unref();
 
 // ── Helpers compartilhados ────────────────────────────────────────────────
@@ -187,8 +222,34 @@ function _decodeMojibake(str) {
 
 const PORT = process.env.PORT || 3000;
 const CLIENT_ROOT = path.join(__dirname, '..');
+
+// Bloqueio de segurança: impede acesso HTTP a diretórios e arquivos sensíveis
+// que ficam na raiz do projeto junto com os assets do frontend.
+// Usa 404 (não 403) para não revelar se o arquivo existe.
+const _BLOCKED_PREFIXES = ['/server/', '/db/', '/legacy/', '/config/'];
+const _BLOCKED_FILES = new Set([
+  '/package.json', '/package-lock.json',
+  '/readme.md', '/improvements.md',
+  '/dockerfile', '/railway.json', '/railway.toml',
+  '/start_all.bat', '/.env',
+]);
+app.use((req, res, next) => {
+  const p = req.path.toLowerCase();
+  if (_BLOCKED_PREFIXES.some(pre => p === pre.slice(0, -1) || p.startsWith(pre))) {
+    return res.status(404).end();
+  }
+  if (_BLOCKED_FILES.has(p)) {
+    return res.status(404).end();
+  }
+  // Bloqueia qualquer arquivo .sql, .log, .bat, .json fora de /client/
+  if (!p.startsWith('/client/') && /\.(sql|log|bat|env)$/.test(p)) {
+    return res.status(404).end();
+  }
+  next();
+});
+
 try {
-  app.use(express.static(CLIENT_ROOT));
+  app.use(express.static(CLIENT_ROOT, { dotfiles: 'deny' }));
   logger.info('Servindo frontend estático', { path: CLIENT_ROOT });
 } catch(e) {
   logger.warn('Não foi possível servir arquivos estáticos', { err: e && e.message });
@@ -265,6 +326,16 @@ async function _runMigrations() {
 
   // Primeiro login: forçar troca de senha
   await addCol('usuario', 'must_change_password', 'TINYINT(1) NOT NULL DEFAULT 0');
+
+  // Segurança: tabela para persistir JTIs revogados entre reinicializações
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS \`revoked_token\` (
+      \`jti\`        VARCHAR(64)  NOT NULL,
+      \`expires_at\` DATETIME     NOT NULL,
+      PRIMARY KEY (\`jti\`),
+      INDEX \`idx_revtok_exp\` (\`expires_at\`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
+  `);
 }
 const migrationsReady = _runMigrations()
   .catch(e => logger.warn('Migrações falharam', { err: e && e.message }));
@@ -317,8 +388,17 @@ async function _ensureReciboTable() {
 // ── Rotas da API ──────────────────────────────────────────────────────────
 
 const cryptoUtils = require('./crypto-utils');
+
+// ── Validação de ENCRYPT_KEY ──────────────────────────────────────────────
 if (!process.env.ENCRYPT_KEY) {
-  logger.warn('ENCRYPT_KEY não definida — CPF/CNPJ serão armazenados com prefixo PLAIN. Defina ENCRYPT_KEY no .env para criptografia real.');
+  if (process.env.NODE_ENV === 'production') {
+    // Em produção sem ENCRYPT_KEY, dados sensíveis (CPF/CNPJ) ficam em claro.
+    // Encerramos o processo para forçar a configuração correta antes de subir.
+    logger.error('[SECURITY] ENCRYPT_KEY não definida em produção. Configure ENCRYPT_KEY no ambiente antes de iniciar o servidor.');
+    process.exit(1);
+  } else {
+    logger.warn('ENCRYPT_KEY não definida — CPF/CNPJ serão armazenados com prefixo PLAIN. Defina ENCRYPT_KEY no .env para criptografia real.');
+  }
 }
 
 const deps = {
@@ -326,7 +406,7 @@ const deps = {
   JWT_SECRET, JWT_SECRET_PREV, JWT_EXP, COOKIE_SECURE,
   jwtMiddleware, requireAdmin, requireRole, requireSuperAdmin,
   readLimiter, writeLimiter, authLimiter, refreshLimiter,
-  _decodeMojibake, cryptoUtils, revokedTokens,
+  _decodeMojibake, cryptoUtils, revokedTokens, revokeJti,
 };
 
 // Health check — para monitoramento/liveness probe
@@ -344,6 +424,9 @@ app.use('/api', require('./routes/recibos')(deps));
 
 module.exports = app;
 module.exports.migrationsReady = migrationsReady;
+// Exportados para testes de segurança (JTI persistence)
+module.exports.revokedTokens   = revokedTokens;
+module.exports.loadRevokedJtis = loadRevokedJtis;
 
 // Middleware global de erro — deve ficar após todas as rotas
 app.use((err, req, res, _next) => {
@@ -415,6 +498,7 @@ if (require.main === module) {
     process.on('unhandledRejection', (e) => logger.error('Promise rejeitada sem tratamento', { err: e && e.message }));
     // Tarefas assíncronas pós-startup (não bloqueiam o servidor)
     migrationsReady.then(() => {
+      loadRevokedJtis();       // Recarrega JTIs revogados do banco para o Map
       _runRetentionCleanup();
       _migrateEncryptCpf();
     });

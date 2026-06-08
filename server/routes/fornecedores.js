@@ -35,8 +35,11 @@ module.exports = function fornecedoresRoutes({ db, logger, Joi, readLimiter, wri
   function _fornFromRow(row) {
     try {
       const dados = JSON.parse(row.dados || '{}');
-      const cpf  = decrypt(row.cpf)  ?? dados.cpf  ?? null;
-      const cnpj = decrypt(row.cnpj) ?? dados.cnpj ?? null;
+      // CPF/CNPJ vêm APENAS das colunas criptografadas.
+      // dados.cpf/dados.cnpj são removidos pela migração _migrateEncryptCpf() no startup;
+      // não usar como fallback impede vazar dados em claro se ENCRYPT_KEY for rotacionada.
+      const cpf  = decrypt(row.cpf)  ?? null;
+      const cnpj = decrypt(row.cnpj) ?? null;
       return { ...dados, id: row.id, status: row.status, cpf, cnpj };
     } catch { return { id: row.id, status: row.status }; }
   }

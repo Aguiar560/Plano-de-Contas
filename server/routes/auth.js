@@ -3,7 +3,7 @@
 const express = require('express');
 const crypto  = require('crypto');
 
-module.exports = function authRoutes({ db, logger, audit, Joi, bcrypt, jwt, usersDb, JWT_SECRET, JWT_EXP, COOKIE_SECURE, authLimiter, refreshLimiter, jwtMiddleware, revokedTokens }) {
+module.exports = function authRoutes({ db, logger, audit, Joi, bcrypt, jwt, usersDb, JWT_SECRET, JWT_EXP, COOKIE_SECURE, authLimiter, refreshLimiter, jwtMiddleware, revokedTokens, revokeJti }) {
   const router = express.Router();
 
   function _accessCookieMs() {
@@ -63,9 +63,10 @@ module.exports = function authRoutes({ db, logger, audit, Joi, bcrypt, jwt, user
   });
 
   router.post('/logout', jwtMiddleware, async (req, res) => {
-    // Revogar o access token atual (logout real)
+    // Revogar o access token atual: persiste no Map + banco para sobreviver a restart
     if (req.user && req.user.jti && req.user.exp) {
-      revokedTokens.set(req.user.jti, req.user.exp * 1000);
+      const _revoke = typeof revokeJti === 'function' ? revokeJti : (j, e) => revokedTokens.set(j, e);
+      await _revoke(req.user.jti, req.user.exp * 1000);
     }
     const refreshCookie = req.cookies && req.cookies.refresh_token;
     await usersDb.deleteRefreshToken(res, refreshCookie);

@@ -174,10 +174,18 @@ module.exports = function lancamentosRoutes({ db, logger, audit, Joi, readLimite
         descricao:     row.descricao,
         fornecedor_id: row.fornecedor_id || null
       };
-      const fornId = body.fornecedor_id !== undefined ? (body.fornecedor_id || null) : (row.fornecedor_id || null);
+      let fornId = body.fornecedor_id !== undefined ? (body.fornecedor_id || null) : (row.fornecedor_id || null);
+      // Valida que fornecedor_id pertence à mesma empresa antes de persistir
+      if (fornId) {
+        const [[forn]] = await conn.query(
+          "SELECT id FROM fornecedor WHERE id = ? AND empresa_id = ? AND status != 'excluido' LIMIT 1",
+          [fornId, empresaId]
+        );
+        if (!forn) { await conn.rollback(); return res.status(400).json({ ok:false, erro:'Fornecedor não encontrado' }); }
+      }
       await conn.execute(
-        'UPDATE lancamento SET data=?, tipo=?, valor=?, descricao=?, fornecedor_id=?, updated_at=NOW() WHERE id=?',
-        [body.data, body.tipo, body.valor, body.descricao || null, fornId, id]
+        'UPDATE lancamento SET data=?, tipo=?, valor=?, descricao=?, fornecedor_id=?, updated_at=NOW() WHERE id=? AND empresa_id=?',
+        [body.data, body.tipo, body.valor, body.descricao || null, fornId, id, empresaId]
       );
       await conn.commit();
       await audit(req, 'lancamento_editado', 'lancamento', id, { before, after: { data: body.data, tipo: body.tipo, valor: body.valor, descricao: body.descricao || null, fornecedor_id: fornId } });
