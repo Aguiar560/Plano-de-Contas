@@ -100,6 +100,17 @@ document.querySelectorAll('.report-type-btn[data-relview]').forEach(btn => {
   });
 });
 
+// No mobile o <select> #relTipo fica visível; sincroniza com os botões ao mudar
+const relTipoSel = document.getElementById('relTipo');
+if (relTipoSel) {
+  relTipoSel.addEventListener('change', () => {
+    const val = relTipoSel.value;
+    document.querySelectorAll('.report-type-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.relview === val);
+    });
+  });
+}
+
 // ── Branding ───────────────────────────────────────────────────────────
 // Fonte de verdade: localStorage > config.js BRANDING > defaults
 const BRANDING_COMPANY_KEY = 'plano_branding_company';

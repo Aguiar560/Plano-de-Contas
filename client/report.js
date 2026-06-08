@@ -92,13 +92,14 @@ function gerarRelatorio() {
 
   let html = '';
   switch (tipo) {
-    case 'sintetico': html = relatorioSintetico(lancamentos, dtI, dtF); break;
-    case 'analitico': html = relatorioAnalitico(lancamentos, dtI, dtF); break;
-    case 'resumo':    html = relatorioResumo(lancamentos, dtI, dtF);    break;
-    case 'estrutura':  html = relatorioEstrutura();                       break;
-    case 'dre':        html = relatorioDRE(lancamentos, dtI, dtF);        break;
-    case 'fluxo':      html = relatorioFluxoCaixa(lancamentos, dtI, dtF); break;
-    case 'orcamento':  html = relatorioOrcamento(lancamentos, dtI, dtF);  break;
+    case 'sintetico':     html = relatorioSintetico(lancamentos, dtI, dtF);    break;
+    case 'analitico':     html = relatorioAnalitico(lancamentos, dtI, dtF);    break;
+    case 'resumo':        html = relatorioResumo(lancamentos, dtI, dtF);       break;
+    case 'estrutura':     html = relatorioEstrutura();                          break;
+    case 'dre':           html = relatorioDRE(lancamentos, dtI, dtF);           break;
+    case 'fluxo':         html = relatorioFluxoCaixa(lancamentos, dtI, dtF);    break;
+    case 'orcamento':     html = relatorioOrcamento(lancamentos, dtI, dtF);     break;
+    case 'resumo_diario': html = relatorioResumoDiario(lancamentos, dtI, dtF);  break;
   }
 
   relatorioResultado.innerHTML = html;
@@ -109,6 +110,11 @@ function gerarRelatorio() {
   if (tipo === 'dre')    renderGraficoDRE(lancamentos);
   // Gráfico de barras + linha no Fluxo de Caixa
   if (tipo === 'fluxo')  renderGraficoFluxo(lancamentos);
+
+  // No mobile o resultado fica abaixo do painel de filtros — rola até ele
+  if (window.innerWidth <= 900) {
+    requestAnimationFrame(() => relatorioResultado.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
 }
 
 // ── Cabeçalho padrão de relatório ─────────────────────────────────────────
@@ -1226,6 +1232,117 @@ function relatorioOrcamento(lancamentos, dtI, dtF) {
             <span style="font-size:13px;font-weight:800;color:${totCor};min-width:44px;text-align:right">${totOrc > 0 ? totPct.toFixed(1) + '%' : '—'}</span>
           </div>
         </td>
+      </tr>
+      </tbody></table>
+    </div>`;
+
+  return html;
+}
+
+// ── Relatório Resumo Diário ───────────────────────────────────────────────
+function relatorioResumoDiario(lancamentos, dtI, dtF) {
+  let html = cabecalhoRel('Resumo Diário de Caixa', dtI, dtF);
+
+  if (lancamentos.length === 0) {
+    return html + `<p class="rel-empty">Nenhum lançamento no período selecionado.</p>`;
+  }
+
+  // Calcular saldo acumulado antes do período usando TODOS os lançamentos do repo
+  let saldoAnterior = 0;
+  if (repo.root) {
+    const todos = [];
+    function coletarTodos(c) {
+      for (const l of c.lancamentos) {
+        if (!l.data) continue;
+        const d = new Date(l.data + 'T00:00:00');
+        if (d < dtI) {
+          todos.push(l.tipo === 'credito' ? l.valor : -l.valor);
+        }
+      }
+      let f = c.firstChild;
+      while (f) { coletarTodos(f); f = f.nextSibling; }
+    }
+    let r = repo.root.firstChild;
+    while (r) { coletarTodos(r); r = r.nextSibling; }
+    saldoAnterior = todos.reduce((s, v) => s + v, 0);
+  }
+
+  // Agrupar lançamentos do período por dia
+  const dias = {};
+  for (const l of lancamentos) {
+    const key = l.data.toISOString().split('T')[0];
+    if (!dias[key]) dias[key] = { entradas: 0, saidas: 0 };
+    if (l.tipo === 'credito') dias[key].entradas += l.valor;
+    else                      dias[key].saidas   += Math.abs(l.valor);
+  }
+
+  const keys = Object.keys(dias).sort();
+
+  // Totais do período
+  const totEntradas = lancamentos.filter(l => l.tipo === 'credito').reduce((s, l) => s + l.valor, 0);
+  const totSaidas   = lancamentos.filter(l => l.tipo === 'debito').reduce((s, l) => s + Math.abs(l.valor), 0);
+  const saldoFinal  = saldoAnterior + totEntradas - totSaidas;
+
+  html += `
+    <div class="rel-summary" style="grid-template-columns:repeat(4,1fr)">
+      <div class="rel-summary-card saldo">
+        <div class="label">Saldo Inicial do Período</div>
+        <div class="value">${formatMoeda(saldoAnterior)}</div>
+      </div>
+      <div class="rel-summary-card entrada">
+        <div class="label">Total Entradas</div>
+        <div class="value">${formatMoeda(totEntradas)}</div>
+      </div>
+      <div class="rel-summary-card saida">
+        <div class="label">Total Saídas</div>
+        <div class="value">${formatMoeda(totSaidas)}</div>
+      </div>
+      <div class="rel-summary-card saldo">
+        <div class="label">Saldo Final do Período</div>
+        <div class="value" style="color:${saldoFinal>=0?'#16a34a':'#dc2626'}">${formatMoeda(saldoFinal)}</div>
+      </div>
+    </div>`;
+
+  html += `
+    <div class="rel-section">
+      <table class="rel-table">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th style="text-align:right">Saldo Inicial</th>
+            <th style="text-align:right;color:#dc2626">Saídas</th>
+            <th style="text-align:right;color:#16a34a">Entradas</th>
+            <th style="text-align:right">Saldo Final</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+  let saldoDia = saldoAnterior;
+  for (const key of keys) {
+    const { entradas, saidas } = dias[key];
+    const saldoIni = saldoDia;
+    const saldoFin = saldoIni + entradas - saidas;
+    const [ano, mes, dia] = key.split('-');
+    const dataFmt = `${dia}/${mes}/${ano}`;
+
+    html += `<tr>
+      <td style="font-weight:600">${dataFmt}</td>
+      <td class="td-num">${formatMoeda(saldoIni)}</td>
+      <td class="td-num" style="color:${saidas>0?'#dc2626':'#94a3b8'}">${saidas>0 ? formatMoeda(saidas) : '—'}</td>
+      <td class="td-num" style="color:${entradas>0?'#16a34a':'#94a3b8'}">${entradas>0 ? formatMoeda(entradas) : '—'}</td>
+      <td class="td-num" style="color:${saldoFin>=0?'#16a34a':'#dc2626'};font-weight:700">${formatMoeda(saldoFin)}</td>
+    </tr>`;
+
+    saldoDia = saldoFin;
+  }
+
+  html += `
+      <tr style="background:#f1f5f9;font-weight:800;font-size:13px">
+        <td>Total Período</td>
+        <td class="td-num">—</td>
+        <td class="td-num" style="color:#dc2626">${formatMoeda(totSaidas)}</td>
+        <td class="td-num" style="color:#16a34a">${formatMoeda(totEntradas)}</td>
+        <td class="td-num" style="color:${saldoFinal>=0?'#16a34a':'#dc2626'}">${formatMoeda(saldoFinal)}</td>
       </tr>
       </tbody></table>
     </div>`;
