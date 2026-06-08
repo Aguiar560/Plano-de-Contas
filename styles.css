@@ -3304,6 +3304,22 @@ body.sidebar-open .btn-hamburger span:nth-child(3) { transform: translateY(-7px)
   /* ── Toolbar / filter bar ── */
   .toolbar, .filter-bar { flex-wrap: wrap; gap: 8px; }
 
+  /* ── page-toolbar: tudo em uma linha ── */
+  .page-toolbar { flex-wrap: nowrap; gap: 6px; overflow-x: auto; }
+  .toolbar-filters { flex-wrap: nowrap; min-width: 0; }
+  .toolbar-filters .search-box { min-width: 0; flex: 1; }
+  .toolbar-filters .search-input { min-width: 0; width: 100%; }
+
+  /* ── Summary bar: itens lado a lado (sobrescreve bloco 680px) ── */
+  .summary-bar { flex-direction: row !important; }
+  .summary-item {
+    border-right: 1px solid var(--c-border) !important;
+    border-bottom: none !important;
+    padding: 10px 12px;
+  }
+  .summary-item:last-child { border-right: none !important; }
+  .summary-item-value { font-size: 16px; }
+
   /* ── Dashboard period bar: troca botões por select no mobile ── */
   .period-btn  { display: none; }
   .period-sep  { display: none; }
