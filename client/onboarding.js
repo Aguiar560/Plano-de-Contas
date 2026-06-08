@@ -126,16 +126,18 @@ async function _onbFinalizar() {
     if (typeof applyBranding === 'function') applyBranding();
   }
 
-  await _onbCriarTemplate();
+  try { await _onbCriarTemplate(); } catch(e) { /* fecha overlay mesmo com erro */ }
 
   _onbClose();
 
   // Recarregar a árvore com as contas criadas
-  if (typeof PlanoContasRepository !== 'undefined' && typeof updateDashboard === 'function') {
-    await PlanoContasRepository.carregarDoBanco();
-    if (typeof renderTree === 'function') renderTree();
-    updateDashboard();
-  }
+  try {
+    if (typeof repo !== 'undefined' && typeof repo.carregarDoBanco === 'function' && typeof updateDashboard === 'function') {
+      await repo.carregarDoBanco();
+      if (typeof renderTree === 'function') renderTree();
+      updateDashboard();
+    }
+  } catch(e) {}
 
   if (typeof showToast === 'function') showToast('Bem-vindo! Plano de contas configurado.', 'success');
 }
@@ -168,8 +170,9 @@ function initOnboarding() {
 
   // Aguardar o app estar pronto e checar se o plano está vazio
   const _check = () => {
-    if (typeof PlanoContasRepository === 'undefined') return;
-    const contas = PlanoContasRepository.listar ? PlanoContasRepository.listar() : [];
+    if (localStorage.getItem(ONBOARDING_KEY)) return;
+    if (typeof repo === 'undefined') return;
+    const contas = repo.listar ? repo.listar() : [];
     const temContas = contas && contas.length > 0;
 
     // Só mostra para admin/gerente com plano vazio
@@ -183,7 +186,9 @@ function initOnboarding() {
   // Aguarda o carregarDoBanco completar (evento customizado disparado em app.js)
   window.addEventListener('plano:loaded', _check, { once: true });
   // Fallback: checar após 2s caso evento não dispare
-  setTimeout(_check, 2000);
+  const _fallback = setTimeout(_check, 2000);
+  // Cancela o fallback se o evento disparar antes
+  window.addEventListener('plano:loaded', () => clearTimeout(_fallback), { once: true });
 }
 
 // ── Wiring de botões ──────────────────────────────────────────────────────

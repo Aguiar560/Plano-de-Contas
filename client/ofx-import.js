@@ -231,8 +231,8 @@ async function _executarImport() {
   if (typeof showToast === 'function') showToast(msg, errs ? 'warning' : 'success');
 
   // Recarregar árvore
-  if (typeof PlanoContasRepository !== 'undefined') {
-    await PlanoContasRepository.carregarDoBanco();
+  if (typeof repo !== 'undefined' && typeof repo.carregarDoBanco === 'function') {
+    await repo.carregarDoBanco();
     if (typeof renderTree === 'function') renderTree();
     if (typeof updateDashboard === 'function') updateDashboard();
   }
