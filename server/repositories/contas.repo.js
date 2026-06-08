@@ -19,10 +19,10 @@ module.exports = function createContasRepo({ db }) {
     },
 
     /** Lista todas as contas ativas da empresa — apenas estrutura, sem lancamentos. */
-    async listAll(empresaId) {
+    async listAll(empresaId, limit = 2000) {
       return db.query(
-        'SELECT id, parent_id, codigo, nome, natureza, orcamento, ordem FROM conta WHERE empresa_id = ? AND deleted_at IS NULL ORDER BY codigo',
-        [empresaId]
+        'SELECT id, parent_id, codigo, nome, natureza, orcamento, ordem FROM conta WHERE empresa_id = ? AND deleted_at IS NULL ORDER BY codigo LIMIT ?',
+        [empresaId, limit]
       );
     },
 

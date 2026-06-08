@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * health.test.js — Endpoint de liveness probe
+ * health.test.js — Endpoint de liveness/readiness probe
  */
 
 const request = require('supertest');
@@ -20,5 +20,15 @@ describe('GET /health', () => {
     const res = await request(app).get('/health');
     expect(res.status).not.toBe(401);
     expect(res.status).not.toBe(403);
+  });
+
+  test('inclui status do banco quando DB está disponível', async () => {
+    const res = await request(app).get('/health');
+    // Com DB real disponível nos testes, deve retornar db:'ok'
+    if (res.body.db !== undefined) {
+      expect(res.body.db).toBe('ok');
+    }
+    // Caso não haja DB configurado, ok:true sem campo db — também válido
+    expect(res.body.ok).toBe(true);
   });
 });

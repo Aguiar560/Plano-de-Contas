@@ -44,12 +44,16 @@ module.exports = function createLancamentosRepo({ db }) {
     /**
      * Todos os lançamentos da empresa para um ano, ordenados por data.
      * Usado pelo endpoint CQRS GET /api/lancamentos?ano=XXXX.
+     * @param {number} limit — máximo de registros (default: cfg.limits.lancamentosPerYear)
+     * @returns {{ rows: Array, truncated: boolean }}
      */
-    async listByYear(empresaId, ano) {
-      return db.query(
-        'SELECT id, conta_id, data, tipo, valor, descricao, fornecedor_id FROM lancamento WHERE empresa_id = ? AND deleted_at IS NULL AND YEAR(data) = ? ORDER BY data, id',
-        [empresaId, ano]
+    async listByYear(empresaId, ano, limit = 5000) {
+      const rows = await db.query(
+        'SELECT id, conta_id, data, tipo, valor, descricao, fornecedor_id FROM lancamento WHERE empresa_id = ? AND deleted_at IS NULL AND YEAR(data) = ? ORDER BY data, id LIMIT ?',
+        [empresaId, ano, limit + 1]
       );
+      const truncated = rows.length > limit;
+      return { rows: truncated ? rows.slice(0, limit) : rows, truncated };
     },
 
     /** Verifica se uma conta pertence à empresa (para GET lista). */

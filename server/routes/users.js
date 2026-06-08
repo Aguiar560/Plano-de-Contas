@@ -38,7 +38,14 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
   router.put('/users/:id', jwtMiddleware, requireAdmin, async (req, res) => {
     const empresaId = req.user.empresaId;
     const id = +req.params.id;
-    const { perfil, ativo } = req.body;
+    if (!id) return res.status(400).json({ ok:false, erro:'ID inválido' });
+    const schema = Joi.object({
+      perfil: Joi.string().valid('admin','gerente','operador','visualizador').optional(),
+      ativo:  Joi.boolean().optional(),
+    }).or('perfil','ativo').messages({ 'object.missing':'Informe perfil ou ativo' });
+    const { error: vErr, value: body } = schema.validate(req.body, { stripUnknown:true });
+    if (vErr) return res.status(400).json({ ok:false, erro: vErr.details[0].message });
+    const { perfil, ativo } = body;
     try {
       const u = await usersDb.findById(id);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
@@ -72,8 +79,12 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
   });
 
   router.post('/me/first-password', writeLimiter, jwtMiddleware, async (req, res) => {
-    const { nova } = req.body;
-    if (!nova || nova.length < 4) return res.status(400).json({ ok:false, erro:'Senha muito curta (mínimo 4 caracteres)' });
+    const { error: vErr, value: body } = Joi.object({
+      nova: Joi.string().min(4).max(200).required()
+        .messages({ 'string.min':'Senha muito curta (mínimo 4 caracteres)', 'any.required':'nova senha obrigatória' }),
+    }).validate(req.body || {});
+    if (vErr) return res.status(400).json({ ok:false, erro: vErr.details[0].message });
+    const { nova } = body;
     try {
       const u = await usersDb.findById(req.user.userId);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
@@ -86,8 +97,13 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
   });
 
   router.post('/me/change-password', writeLimiter, jwtMiddleware, async (req, res) => {
-    const { atual, nova } = req.body;
-    if (!atual || !nova) return res.status(400).json({ ok:false, erro:'Campos obrigatórios' });
+    const { error: vErr, value: body } = Joi.object({
+      atual: Joi.string().min(1).max(200).required().messages({ 'any.required':'Senha atual obrigatória' }),
+      nova:  Joi.string().min(4).max(200).required()
+        .messages({ 'string.min':'Nova senha muito curta (mínimo 4 caracteres)', 'any.required':'Nova senha obrigatória' }),
+    }).validate(req.body || {});
+    if (vErr) return res.status(400).json({ ok:false, erro: vErr.details[0].message });
+    const { atual, nova } = body;
     try {
       const u = await usersDb.findById(req.user.userId);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });
@@ -216,8 +232,11 @@ module.exports = function usersRoutes({ logger, audit, Joi, bcrypt, usersDb, rea
 
   router.delete('/me', writeLimiter, jwtMiddleware, async (req, res) => {
     const empresaId = req.user.empresaId;
-    const { senha } = req.body || {};
-    if (!senha) return res.status(400).json({ ok:false, erro:'Confirme com sua senha para excluir a conta.' });
+    const { error: vErr, value: body } = Joi.object({
+      senha: Joi.string().min(1).max(200).required(),
+    }).validate(req.body || {});
+    if (vErr) return res.status(400).json({ ok:false, erro:'Confirme com sua senha para excluir a conta.' });
+    const { senha } = body;
     try {
       const u = await usersDb.findById(req.user.userId);
       if (!u) return res.status(404).json({ ok:false, erro:'Usuário não encontrado' });

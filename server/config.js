@@ -16,6 +16,8 @@
  *   RATE_REFRESH_MAX      — req/min na rota de refresh (padrão: 30)
  *   RATE_WRITE_MAX        — req/min nas rotas de escrita (padrão: 60)
  *   RATE_READ_MAX         — req/min nas rotas de leitura (padrão: 200)
+ *   MAX_LANCAMENTOS_YEAR  — limite de lançamentos por empresa/ano no GET bulk (padrão: 5000)
+ *   MAX_CONTAS_EMPRESA    — limite de contas ativas por empresa no GET árvore (padrão: 2000)
  */
 
 function _int(name, fallback) {
@@ -40,5 +42,10 @@ module.exports = {
     refresh: { windowMs: 60_000, max: _int('RATE_REFRESH_MAX', 30)  },
     write:   { windowMs: 60_000, max: _int('RATE_WRITE_MAX',   60)  },
     read:    { windowMs: 60_000, max: _int('RATE_READ_MAX',    200) },
+  },
+
+  limits: {
+    lancamentosPerYear: _int('MAX_LANCAMENTOS_YEAR', 5000),
+    contasPerEmpresa:   _int('MAX_CONTAS_EMPRESA',   2000),
   },
 };

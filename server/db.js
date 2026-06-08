@@ -1,8 +1,14 @@
 require('dotenv').config();
-const mysql = require('mysql2/promise');
+const mysql          = require('mysql2/promise');
+const CircuitBreaker = require('./circuit-breaker');
+
+// Códigos de erro que justificam re-tentativa (problemas de rede/pool transientes).
+const TRANSIENT_CODES = new Set([
+  'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND',
+  'ER_CON_COUNT_ERROR', 'PROTOCOL_CONNECTION_LOST',
+]);
 
 // Railway injeta MYSQL_URL (ou DATABASE_URL) automaticamente pelo plugin MySQL.
-// Se presente, usa a URL diretamente; caso contrário, usa as variáveis individuais.
 function _parseDbUrl(url) {
   try {
     const u = new URL(url);
@@ -43,20 +49,50 @@ function makePool(extra) {
 }
 
 // Pool normal — multipleStatements DESABILITADO (segurança)
-const POOL = makePool({ multipleStatements: false });
-
-// Pool separado usado APENAS por scripts DDL multi-statement
+const POOL       = makePool({ multipleStatements: false });
+// Pool separado APENAS para scripts DDL multi-statement (migrations)
 const POOL_MULTI = makePool({ multipleStatements: true, connectionLimit: 2 });
 
-module.exports = {
-  pool: POOL,
-  poolMulti: POOL_MULTI,
-  query: async (sql, params) => {
-    const [rows] = await POOL.query(sql, params);
-    return rows;
-  },
-  execute: async (sql, params) => {
-    const [res] = await POOL.execute(sql, params);
-    return res;
+// Circuit breaker compartilhado: 5 falhas transientes abrem o circuito por 30s.
+const _breaker = new CircuitBreaker({ failureThreshold: 5, halfOpenMs: 30_000 });
+
+/**
+ * Retry com exponential backoff para erros transientes.
+ * Tentativas: 1 (imediata), 2 (+100ms), 3 (+200ms).
+ * Lança o último erro se todas as tentativas falharem.
+ */
+async function _withRetry(fn, maxAttempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch(e) {
+      lastError = e;
+      if (!TRANSIENT_CODES.has(e.code) || attempt === maxAttempts) throw e;
+      await new Promise(r => setTimeout(r, 100 * Math.pow(2, attempt - 1)));
+    }
   }
+  throw lastError;
+}
+
+module.exports = {
+  pool:      POOL,
+  poolMulti: POOL_MULTI,
+  breaker:   _breaker,
+
+  /** Executa query SELECT/DML com retry e circuit breaker. */
+  query: async (sql, params) => {
+    return _breaker.call(() => _withRetry(async () => {
+      const [rows] = await POOL.query(sql, params);
+      return rows;
+    }));
+  },
+
+  /** Executa prepared statement com retry e circuit breaker. */
+  execute: async (sql, params) => {
+    return _breaker.call(() => _withRetry(async () => {
+      const [res] = await POOL.execute(sql, params);
+      return res;
+    }));
+  },
 };

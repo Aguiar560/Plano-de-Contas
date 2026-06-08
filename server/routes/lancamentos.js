@@ -9,6 +9,8 @@ const express = require('express');
  * CQRS: GET sem conta_id + com ano retorna todos os lançamentos do ano
  *       (usado pelo frontend após split de GET /api/contas).
  */
+const cfg = require('../config');
+
 module.exports = function lancamentosRoutes({
   db, logger, audit, Joi,
   readLimiter, writeLimiter,
@@ -49,8 +51,11 @@ module.exports = function lancamentosRoutes({
         return res.status(400).json({ ok:false, erro:'"ano" inválido' });
       }
       try {
-        const rows = await lancamentosRepo.listByYear(empresaId, ano);
-        res.json({ ok:true, ano, lancamentos: rows.map(_formatLanc) });
+        const limit = cfg.limits.lancamentosPerYear;
+        const { rows, truncated } = await lancamentosRepo.listByYear(empresaId, ano, limit);
+        const resp = { ok:true, ano, lancamentos: rows.map(_formatLanc) };
+        if (truncated) resp.aviso = `Resultado truncado em ${limit} lançamentos. Use filtros de data para consultar períodos menores.`;
+        res.json(resp);
       } catch(e) {
         logger.error('GET /api/lancamentos (ano) falhou', { err: e && e.message });
         res.status(500).json({ ok:false, erro:'DB error' });

@@ -28,16 +28,13 @@ module.exports = function createUsersRepo(pool) {
   async function findByUsuario(usuario, empresaId) {
     let rows;
     if (empresaId === null || empresaId === undefined) {
+      // Busca o usuário priorizando linhas sem empresa (superadmin).
+      // ORDER BY (empresa_id IS NULL) DESC = IS NULL rows first (1 > 0).
+      // Uma única query elimina o round-trip duplo da versão anterior.
       [rows] = await pool.execute(
-        'SELECT * FROM usuario WHERE usuario = ? AND empresa_id IS NULL LIMIT 1',
+        'SELECT * FROM usuario WHERE usuario = ? ORDER BY (empresa_id IS NULL) DESC LIMIT 1',
         [usuario.toLowerCase()]
       );
-      if (!rows[0]) {
-        [rows] = await pool.execute(
-          'SELECT * FROM usuario WHERE usuario = ? LIMIT 1',
-          [usuario.toLowerCase()]
-        );
-      }
     } else {
       [rows] = await pool.execute(
         'SELECT * FROM usuario WHERE usuario = ? AND empresa_id = ? LIMIT 1',
