@@ -392,12 +392,17 @@ const cryptoUtils = require('./crypto-utils');
 // ── Validação de ENCRYPT_KEY ──────────────────────────────────────────────
 if (!process.env.ENCRYPT_KEY) {
   if (process.env.NODE_ENV === 'production') {
-    // Em produção sem ENCRYPT_KEY, dados sensíveis (CPF/CNPJ) ficam em claro.
-    // Encerramos o processo para forçar a configuração correta antes de subir.
     logger.error('[SECURITY] ENCRYPT_KEY não definida em produção. Configure ENCRYPT_KEY no ambiente antes de iniciar o servidor.');
     process.exit(1);
   } else {
     logger.warn('ENCRYPT_KEY não definida — CPF/CNPJ serão armazenados com prefixo PLAIN. Defina ENCRYPT_KEY no .env para criptografia real.');
+  }
+} else {
+  const keyVersion = parseInt(process.env.ENCRYPT_KEY_VERSION || '1', 10);
+  logger.info(`[crypto] ENCRYPT_KEY ativa na versão v${keyVersion}.`);
+  // Avisa se não existe a chave da versão anterior definida (risco de dados inacessíveis após rotação)
+  if (keyVersion > 1 && !process.env[`ENCRYPT_KEY_V${keyVersion - 1}`]) {
+    logger.warn(`[crypto] ENCRYPT_KEY_VERSION=${keyVersion} mas ENCRYPT_KEY_V${keyVersion - 1} não está definida. Dados criptografados com a chave v${keyVersion - 1} ficarão inacessíveis.`);
   }
 }
 

@@ -141,53 +141,154 @@ describe('Fix 2 — JTI revogado persiste no banco (sobrevive a restart simulado
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Fix 3 — ENCRYPT_KEY: comportamento por ambiente
+// Fix 3 — Versionamento de chave de criptografia (ENC:v{n}:...)
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('Fix 3 — crypto-utils comportamento sem ENCRYPT_KEY', () => {
-  const { encrypt, decrypt, isEncrypted } = require('../crypto-utils');
+describe('Fix 3 — Versionamento de chave de criptografia (ENC:v{n}:...)', () => {
+  const KEY_A = 'chave-A-para-testes-32bytes-ok!!';
+  const KEY_B = 'chave-B-rotacionada-32bytes-ok!!';
+  const PLAIN = '123.456.789-00';
 
-  // Sem ENCRYPT_KEY, encrypt() retorna prefixo PLAIN (para dev/teste)
-  test('encrypt() sem ENCRYPT_KEY retorna prefixo PLAIN (não lança erro)', () => {
-    const original = process.env.ENCRYPT_KEY;
+  // Guarda estado original das env vars
+  let origKey, origVersion, origV1;
+  beforeEach(() => {
+    origKey     = process.env.ENCRYPT_KEY;
+    origVersion = process.env.ENCRYPT_KEY_VERSION;
+    origV1      = process.env.ENCRYPT_KEY_V1;
+  });
+  afterEach(() => {
+    if (origKey !== undefined) process.env.ENCRYPT_KEY = origKey; else delete process.env.ENCRYPT_KEY;
+    if (origVersion !== undefined) process.env.ENCRYPT_KEY_VERSION = origVersion; else delete process.env.ENCRYPT_KEY_VERSION;
+    if (origV1 !== undefined) process.env.ENCRYPT_KEY_V1 = origV1; else delete process.env.ENCRYPT_KEY_V1;
+  });
+
+  // Re-importa crypto-utils para refletir env vars alteradas
+  function freshUtils() {
+    jest.resetModules();
+    return require('../crypto-utils');
+  }
+
+  test('encrypt() sem ENCRYPT_KEY retorna PLAIN:', () => {
     delete process.env.ENCRYPT_KEY;
-    try {
-      const result = encrypt('12345678900');
-      expect(result).toMatch(/^PLAIN:/);
-      expect(isEncrypted(result)).toBe(true);
-    } finally {
-      if (original !== undefined) process.env.ENCRYPT_KEY = original;
-    }
+    const { encrypt, isEncrypted } = freshUtils();
+    const result = encrypt(PLAIN);
+    expect(result).toMatch(/^PLAIN:/);
+    expect(isEncrypted(result)).toBe(true);
   });
 
-  test('decrypt() de valor PLAIN retorna o valor original', () => {
-    const result = decrypt('PLAIN:12345678900');
-    expect(result).toBe('12345678900');
+  test('decrypt() de PLAIN: retorna valor original', () => {
+    const { decrypt } = freshUtils();
+    expect(decrypt('PLAIN:' + PLAIN)).toBe(PLAIN);
   });
 
-  test('encrypt() com ENCRYPT_KEY retorna prefixo ENC:', () => {
-    const original = process.env.ENCRYPT_KEY;
-    process.env.ENCRYPT_KEY = 'chave-de-teste-32-chars-ou-mais!!';
-    try {
-      const result = encrypt('12345678900');
-      expect(result).toMatch(/^ENC:/);
-      expect(isEncrypted(result)).toBe(true);
-      // E descriptografa corretamente
-      expect(decrypt(result)).toBe('12345678900');
-    } finally {
-      process.env.ENCRYPT_KEY = original;
-    }
+  test('encrypt() produz formato versionado ENC:v1:...', () => {
+    process.env.ENCRYPT_KEY = KEY_A;
+    process.env.ENCRYPT_KEY_VERSION = '1';
+    const { encrypt } = freshUtils();
+    const result = encrypt(PLAIN);
+    expect(result).toMatch(/^ENC:v1:/);
+    expect(result.split(':').length).toBe(5); // ENC, v1, iv, tag, cipher
   });
 
-  test('decrypt() com ENCRYPT_KEY errada retorna null (não lança)', () => {
-    // Criptografa com chave A, tenta decriptar com chave B
-    process.env.ENCRYPT_KEY = 'chave-A-32-chars-ou-mais-para-ok!';
-    const enc = encrypt('dado-secreto');
-    process.env.ENCRYPT_KEY = 'chave-B-32-chars-diferente-ok!!!!';
-    const result = decrypt(enc);
-    expect(result).toBeNull();
-    // Restaura
-    process.env.ENCRYPT_KEY = 'chave-A-32-chars-ou-mais-para-ok!';
+  test('decrypt() de ENC:v1 com chave correta retorna plaintext', () => {
+    process.env.ENCRYPT_KEY = KEY_A;
+    process.env.ENCRYPT_KEY_VERSION = '1';
+    const { encrypt, decrypt } = freshUtils();
+    const enc = encrypt(PLAIN);
+    expect(decrypt(enc)).toBe(PLAIN);
+  });
+
+  test('decrypt() de formato legado (ENC:iv:tag:cipher sem versão) tratado como v1', () => {
+    // Simula dado existente no banco no formato antigo
+    process.env.ENCRYPT_KEY = KEY_A;
+    process.env.ENCRYPT_KEY_VERSION = '1';
+    const { decrypt } = freshUtils();
+    // Constrói manualmente um valor no formato legado usando módulo crypto diretamente
+    const crypto = require('crypto');
+    const key    = crypto.createHash('sha256').update(KEY_A).digest();
+    const iv     = crypto.randomBytes(12);
+    const ciph   = crypto.createCipheriv('aes-256-gcm', key, iv);
+    const enc    = Buffer.concat([ciph.update(PLAIN, 'utf8'), ciph.final()]);
+    const tag    = ciph.getAuthTag();
+    const legacy = `ENC:${iv.toString('hex')}:${tag.toString('hex')}:${enc.toString('hex')}`;
+    expect(decrypt(legacy)).toBe(PLAIN);
+  });
+
+  test('decrypt() retorna null com chave errada (não lança)', () => {
+    process.env.ENCRYPT_KEY = KEY_A;
+    const { encrypt } = freshUtils();
+    const enc = encrypt(PLAIN);
+    // Troca a chave — decrypt deve retornar null
+    process.env.ENCRYPT_KEY = KEY_B;
+    const { decrypt } = freshUtils();
+    expect(decrypt(enc)).toBeNull();
+  });
+
+  test('reEncrypt() não modifica valor já na versão corrente', () => {
+    process.env.ENCRYPT_KEY = KEY_A;
+    process.env.ENCRYPT_KEY_VERSION = '1';
+    const { encrypt, reEncrypt } = freshUtils();
+    const enc = encrypt(PLAIN);
+    expect(reEncrypt(enc)).toBe(enc); // mesmo objeto — sem re-escrita
+  });
+
+  test('reEncrypt() migra legado para versão corrente', () => {
+    // Cria legado com v1
+    process.env.ENCRYPT_KEY = KEY_A;
+    process.env.ENCRYPT_KEY_VERSION = '1';
+    const cryptoNode = require('crypto');
+    const key = cryptoNode.createHash('sha256').update(KEY_A).digest();
+    const iv  = cryptoNode.randomBytes(12);
+    const c   = cryptoNode.createCipheriv('aes-256-gcm', key, iv);
+    const e   = Buffer.concat([c.update(PLAIN, 'utf8'), c.final()]);
+    const t   = c.getAuthTag();
+    const legacy = `ENC:${iv.toString('hex')}:${t.toString('hex')}:${e.toString('hex')}`;
+
+    // Rotaciona para v2: antiga chave em ENCRYPT_KEY_V1, nova chave em ENCRYPT_KEY
+    process.env.ENCRYPT_KEY_V1      = KEY_A;
+    process.env.ENCRYPT_KEY         = KEY_B;
+    process.env.ENCRYPT_KEY_VERSION = '2';
+    const { decrypt, reEncrypt } = freshUtils();
+
+    const migrated = reEncrypt(legacy);
+    expect(migrated).toMatch(/^ENC:v2:/);
+    expect(decrypt(migrated)).toBe(PLAIN);
+  });
+
+  test('reEncrypt() ENC:v1 → ENC:v2 após rotação com ENCRYPT_KEY_V1', () => {
+    // Fase 1: criptografa como v1
+    process.env.ENCRYPT_KEY         = KEY_A;
+    process.env.ENCRYPT_KEY_VERSION = '1';
+    const { encrypt: enc1 } = freshUtils();
+    const v1Value = enc1(PLAIN);
+    expect(v1Value).toMatch(/^ENC:v1:/);
+
+    // Fase 2: rotaciona para v2
+    process.env.ENCRYPT_KEY_V1      = KEY_A;
+    process.env.ENCRYPT_KEY         = KEY_B;
+    process.env.ENCRYPT_KEY_VERSION = '2';
+    const { decrypt: dec2, reEncrypt: re2 } = freshUtils();
+
+    const v2Value = re2(v1Value);
+    expect(v2Value).toMatch(/^ENC:v2:/);
+    expect(dec2(v2Value)).toBe(PLAIN);
+    // v1 ainda descriptografável via ENCRYPT_KEY_V1
+    expect(dec2(v1Value)).toBe(PLAIN);
+  });
+
+  test('reEncrypt() retorna null se chave histórica não disponível', () => {
+    // Dado criptografado com v1 mas ENCRYPT_KEY_V1 não definida
+    process.env.ENCRYPT_KEY         = KEY_A;
+    process.env.ENCRYPT_KEY_VERSION = '1';
+    const { encrypt: enc1 } = freshUtils();
+    const v1Value = enc1(PLAIN);
+
+    // Rotaciona sem preservar v1
+    delete process.env.ENCRYPT_KEY_V1;
+    process.env.ENCRYPT_KEY         = KEY_B;
+    process.env.ENCRYPT_KEY_VERSION = '2';
+    const { reEncrypt } = freshUtils();
+    expect(reEncrypt(v1Value)).toBeNull();
   });
 });
 

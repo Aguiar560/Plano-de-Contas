@@ -2,7 +2,7 @@
 
 const express = require('express');
 
-module.exports = function contasRoutes({ db, logger, audit, Joi, readLimiter, writeLimiter, jwtMiddleware, requireAdmin, requireRole, _decodeMojibake }) {
+module.exports = function contasRoutes({ db, logger, audit, Joi, readLimiter, writeLimiter, jwtMiddleware, requireAdmin, requireRole, _decodeMojibake, cryptoUtils }) {
   const router = express.Router();
 
   // ETag: baseado no timestamp mais recente da empresa
@@ -79,6 +79,68 @@ module.exports = function contasRoutes({ db, logger, audit, Joi, readLimiter, wr
     } catch(e) {
       logger.error('GET /api/contas/hash falhou', { err: e && e.message });
       res.status(500).json({ ok:false, erro:'DB error' });
+    }
+  });
+
+  router.post('/admin/re-encrypt', jwtMiddleware, requireAdmin, async (req, res) => {
+    if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
+    const empresaId = req.user.empresaId;
+    if (!empresaId) return res.status(403).json({ ok:false, erro:'Sem empresa associada' });
+    if (!cryptoUtils || !cryptoUtils.reEncrypt) return res.status(501).json({ ok:false, erro:'reEncrypt não disponível' });
+    const { reEncrypt } = cryptoUtils;
+
+    let updated = 0;
+    let skipped = 0;
+    let errors  = 0;
+    const conn = await db.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // Re-criptografa CPF/CNPJ de fornecedores da empresa
+      const forns = await conn.query(
+        'SELECT id, cpf, cnpj FROM fornecedor WHERE empresa_id = ? AND (cpf IS NOT NULL OR cnpj IS NOT NULL)',
+        [empresaId]
+      );
+      for (const f of forns) {
+        const patch = {};
+        for (const col of ['cpf', 'cnpj']) {
+          if (!f[col]) continue;
+          const next = reEncrypt(f[col]);
+          if (next === null) { errors++; continue; }
+          if (next === f[col]) { skipped++; continue; }
+          patch[col] = next;
+          updated++;
+        }
+        if (Object.keys(patch).length) {
+          await conn.query('UPDATE fornecedor SET ? WHERE id = ? AND empresa_id = ?', [patch, f.id, empresaId]);
+        }
+      }
+
+      // Re-criptografa CPF em recibos da empresa
+      const recibos = await conn.query(
+        'SELECT id, fornecedor_cpf FROM recibo WHERE empresa_id = ? AND fornecedor_cpf IS NOT NULL',
+        [empresaId]
+      );
+      for (const r of recibos) {
+        const next = reEncrypt(r.fornecedor_cpf);
+        if (next === null) { errors++; continue; }
+        if (next === r.fornecedor_cpf) { skipped++; continue; }
+        await conn.query('UPDATE recibo SET fornecedor_cpf = ? WHERE id = ? AND empresa_id = ?', [next, r.id, empresaId]);
+        updated++;
+      }
+
+      await conn.commit();
+      await audit(req, 're_encrypt', 'dados_pessoais', null, {
+        empresaId, updated, skipped, errors,
+        targetVersion: parseInt(process.env.ENCRYPT_KEY_VERSION || '1', 10)
+      });
+      res.json({ ok:true, updated, skipped, errors });
+    } catch(e) {
+      await conn.rollback();
+      logger.error('POST /api/admin/re-encrypt falhou', { err: e && e.message });
+      res.status(500).json({ ok:false, erro:'Erro na re-criptografia' });
+    } finally {
+      conn.release();
     }
   });
 
