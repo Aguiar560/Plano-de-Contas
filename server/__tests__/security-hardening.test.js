@@ -12,7 +12,7 @@
  */
 
 const request = require('supertest');
-const { app, ADMIN, makeToken } = require('./helpers');
+const { app, ADMIN, makeToken, getAdminToken } = require('./helpers');
 
 const SKIP_DB = process.env.SKIP_DB_TESTS === 'true';
 const dbTest  = SKIP_DB ? test.skip : test;
@@ -202,18 +202,8 @@ describe('Fix 4 — fornecedor criado/lido não expõe CPF via campo dados', () 
 
   beforeAll(async () => {
     if (SKIP_DB) return;
-    const loginRes = await request(app)
-      .post('/api/login')
-      .set('X-Forwarded-For', IP_FORN)
-      .send(ADMIN);
-    if (!loginRes.body.ok) return;
-    const u = loginRes.body.user;
-    const jwt = require('jsonwebtoken');
-    const secret = process.env.JWT_SECRET || 'dev-secret-change-me';
-    adminToken = jwt.sign(
-      { userId: u.id, usuario: u.usuario, perfil: u.perfil, empresaId: u.empresaId, jti: 'test-forn-fix4' },
-      secret, { expiresIn: '1h' }
-    );
+    // getAdminToken usa makeToken com empresaId:1 — padrão de todos os outros testes
+    adminToken = await getAdminToken();
   });
 
   afterAll(async () => {
@@ -264,35 +254,23 @@ describe('Fix 4 — fornecedor criado/lido não expõe CPF via campo dados', () 
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('Fix 5 — isolamento multi-tenant em lançamentos (cross-tenant write bloqueado)', () => {
-  const IP_TENANT = '10.1.1.4';
+  // Usa makeToken para garantir empresaId:1 (padrão dos helpers), independente do DB
+  const MY_EMPRESA_ID = 1;
+  const adminToken = makeToken({ perfil: 'operador', empresaId: MY_EMPRESA_ID });
 
   dbTest('PUT /api/lancamentos/:id com id de outra empresa retorna 404 (não grava)', async () => {
-    // Busca um lançamento existente no banco (qualquer empresa)
     const db = require('../db');
-    const allLancs = await db.query(
-      'SELECT l.id, l.empresa_id FROM lancamento l WHERE l.deleted_at IS NULL LIMIT 10'
+
+    // Busca um lançamento de OUTRA empresa
+    const targetLancs = await db.query(
+      'SELECT id FROM lancamento WHERE empresa_id != ? AND deleted_at IS NULL LIMIT 1',
+      [MY_EMPRESA_ID]
     );
-    if (!allLancs.length) return;
-
-    // Login como empresa do ADMIN
-    const loginRes = await request(app)
-      .post('/api/login')
-      .set('X-Forwarded-For', IP_TENANT)
-      .send(ADMIN);
-    if (!loginRes.body.ok) return;
-    const cookie = (loginRes.headers['set-cookie'] || []).find(c => c.startsWith('auth_token='));
-    if (!cookie) return;
-
-    const myEmpresaId = loginRes.body.user.empresaId;
-
-    // Tenta editar um lançamento de OUTRA empresa
-    const targetLanc = allLancs.find(l => l.empresa_id !== myEmpresaId);
-    if (!targetLanc) return; // apenas 1 empresa no banco — skip
+    if (!targetLancs.length) return; // apenas 1 empresa — skip
 
     const res = await request(app)
-      .put('/api/lancamentos/' + targetLanc.id)
-      .set('Cookie', cookie)
-      .set('X-Forwarded-For', IP_TENANT)
+      .put('/api/lancamentos/' + targetLancs[0].id)
+      .set('Authorization', 'Bearer ' + adminToken)
       .send({ data: '2025-01-01', tipo: 'credito', valor: 1, descricao: 'HACK' });
 
     expect(res.status).toBe(404);
@@ -301,35 +279,23 @@ describe('Fix 5 — isolamento multi-tenant em lançamentos (cross-tenant write 
   dbTest('PUT /api/lancamentos/:id não aceita fornecedor_id de outra empresa', async () => {
     const db = require('../db');
 
-    // Login
-    const loginRes = await request(app)
-      .post('/api/login')
-      .set('X-Forwarded-For', IP_TENANT)
-      .send(ADMIN);
-    if (!loginRes.body.ok) return;
-    const cookie = (loginRes.headers['set-cookie'] || []).find(c => c.startsWith('auth_token='));
-    if (!cookie) return;
-
-    const myEmpresaId = loginRes.body.user.empresaId;
-
-    // Busca um lançamento da empresa do ADMIN
+    // Busca um lançamento da empresa 1
     const myLancs = await db.query(
       'SELECT id FROM lancamento WHERE empresa_id = ? AND deleted_at IS NULL LIMIT 1',
-      [myEmpresaId]
+      [MY_EMPRESA_ID]
     );
     if (!myLancs.length) return;
 
     // Busca um fornecedor de OUTRA empresa
     const otherForn = await db.query(
-      'SELECT id FROM fornecedor WHERE empresa_id != ? AND status != ? LIMIT 1',
-      [myEmpresaId, 'excluido']
+      "SELECT id FROM fornecedor WHERE empresa_id != ? AND status != 'excluido' LIMIT 1",
+      [MY_EMPRESA_ID]
     );
     if (!otherForn.length) return; // apenas 1 empresa — skip
 
     const res = await request(app)
       .put('/api/lancamentos/' + myLancs[0].id)
-      .set('Cookie', cookie)
-      .set('X-Forwarded-For', IP_TENANT)
+      .set('Authorization', 'Bearer ' + adminToken)
       .send({ data: '2025-01-01', tipo: 'credito', valor: 1, fornecedor_id: otherForn[0].id });
 
     // 400 porque fornecedor não pertence a esta empresa
