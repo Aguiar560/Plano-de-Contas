@@ -490,6 +490,28 @@ html, body {
 }
 .period-date:focus { border-color: var(--c-primary); }
 
+/* Select de período — visível apenas no mobile (via media query) */
+.period-sel-mobile {
+  display: none;
+  height: 32px;
+  padding: 0 28px 0 10px;
+  font-size: 13px;
+  font-family: var(--font);
+  border: 1.5px solid var(--c-border);
+  border-radius: 99px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.period-sel-mobile:focus { outline: none; border-color: var(--c-primary); }
+
 /* KPI Grid */
 .kpi-grid {
   display: grid;
@@ -3282,10 +3304,11 @@ body.sidebar-open .btn-hamburger span:nth-child(3) { transform: translateY(-7px)
   /* ── Toolbar / filter bar ── */
   .toolbar, .filter-bar { flex-wrap: wrap; gap: 8px; }
 
-  /* ── Dashboard period bar: itens compactos, sem quebra de linha ── */
-  .period-btn { padding: 5px 10px; font-size: 12px; white-space: nowrap; }
+  /* ── Dashboard period bar: troca botões por select no mobile ── */
+  .period-btn  { display: none; }
   .period-sep  { display: none; }
-  .period-date { padding: 5px 6px; font-size: 12px; width: 122px; flex-shrink: 0; }
+  .period-sel-mobile { display: block; }
+  .period-date { padding: 5px 6px; font-size: 12px; width: 120px; flex-shrink: 0; }
 
   /* ── Recibo / receipt layout ── */
   .recibo-grid, .receipt-layout { grid-template-columns: 1fr; }

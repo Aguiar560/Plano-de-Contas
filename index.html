@@ -245,11 +245,17 @@
           <button class="period-btn active" data-period="mes">Este mês</button>
           <button class="period-btn" data-period="trimestre">Trimestre</button>
           <button class="period-btn" data-period="ano">Este ano</button>
+          <!-- Select visível apenas no mobile, substitui os botões acima -->
+          <select id="dashPeriodSel" class="period-sel-mobile">
+            <option value="mes">Este mês</option>
+            <option value="trimestre">Trimestre</option>
+            <option value="ano">Este ano</option>
+          </select>
           <span class="period-sep">|</span>
           <input type="date" id="dashDtI" class="period-date" />
-          <span style="color:var(--c-text-muted);font-size:13px;padding:0 2px">até</span>
+          <span style="color:var(--c-text-muted);font-size:13px;padding:0 2px;white-space:nowrap">até</span>
           <input type="date" id="dashDtF" class="period-date" />
-          <button class="btn btn-sm btn-primary" id="btnDashAplicar">Aplicar</button>
+          <button class="btn btn-sm btn-primary" id="btnDashAplicar" style="white-space:nowrap">Aplicar</button>
         </div>
 
         <!-- KPI Cards -->

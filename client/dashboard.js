@@ -134,18 +134,35 @@ function initDashboard() {
   // Set default period
   _applyPeriod('mes');
 
-  // Period buttons
+  // Period buttons (desktop)
   document.querySelectorAll('#view-dashboard .period-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#view-dashboard .period-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      const sel = document.getElementById('dashPeriodSel');
+      if (sel) sel.value = btn.dataset.period;
       _applyPeriod(btn.dataset.period);
       updateDashboard();
     });
   });
 
+  // Period select (mobile)
+  const dashPeriodSel = document.getElementById('dashPeriodSel');
+  if (dashPeriodSel) {
+    dashPeriodSel.addEventListener('change', () => {
+      const period = dashPeriodSel.value;
+      document.querySelectorAll('#view-dashboard .period-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.period === period);
+      });
+      _applyPeriod(period);
+      updateDashboard();
+    });
+  }
+
   document.getElementById('btnDashAplicar')?.addEventListener('click', () => {
     document.querySelectorAll('#view-dashboard .period-btn').forEach(b => b.classList.remove('active'));
+    const sel = document.getElementById('dashPeriodSel');
+    if (sel) sel.value = '';
     updateDashboard();
   });
 }
