@@ -31,7 +31,7 @@ function createDom(scripts = [], html = '<!DOCTYPE html><html><head></head><body
 
   const dom = new JSDOM(fullHtml, {
     runScripts: 'dangerously',
-    url: 'http://localhost:3000',
+    url: 'http://localhost:3001',
   });
 
   // Stubs básicos

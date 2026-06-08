@@ -10,6 +10,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const Joi = require('joi');
 const logger = require('./logger');
+const cfg    = require('./config');
 
 // ── Camada de usuários/auth com fallback JSON → MySQL ─────────────────────
 const usersDb = require('./users-db');
@@ -52,11 +53,11 @@ app.set('trust proxy', 1); // suporta X-Forwarded-For de proxies/nginx
 app.use(bodyParser.json({ limit: '100kb' }));
 app.use(cookieParser());
 
-// Rate limiters
-const authLimiter    = rateLimit({ windowMs: 60 * 1000, max: 10,  standardHeaders: true, legacyHeaders: false, message: { ok:false, erro:'Muitas tentativas, aguarde um minuto.' } });
-const refreshLimiter = rateLimit({ windowMs: 60 * 1000, max: 30,  standardHeaders: true, legacyHeaders: false, message: { ok:false, erro:'Taxa excedida.' } });
-const writeLimiter   = rateLimit({ windowMs: 60 * 1000, max: 60,  standardHeaders: true, legacyHeaders: false, message: { ok:false, erro:'Muitas requisições. Aguarde um momento.' } });
-const readLimiter    = rateLimit({ windowMs: 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false, message: { ok:false, erro:'Muitas requisições. Aguarde um momento.' } });
+// Rate limiters — limites configuráveis via env (RATE_AUTH_MAX, RATE_WRITE_MAX, RATE_READ_MAX)
+const authLimiter    = rateLimit({ ...cfg.rateLimit.auth,    standardHeaders: true, legacyHeaders: false, message: { ok:false, erro:'Muitas tentativas, aguarde um minuto.' } });
+const refreshLimiter = rateLimit({ ...cfg.rateLimit.refresh, standardHeaders: true, legacyHeaders: false, message: { ok:false, erro:'Taxa excedida.' } });
+const writeLimiter   = rateLimit({ ...cfg.rateLimit.write,   standardHeaders: true, legacyHeaders: false, message: { ok:false, erro:'Muitas requisições. Aguarde um momento.' } });
+const readLimiter    = rateLimit({ ...cfg.rateLimit.read,    standardHeaders: true, legacyHeaders: false, message: { ok:false, erro:'Muitas requisições. Aguarde um momento.' } });
 
 // CSRF: valida header Origin em requisições de escrita em produção
 function csrfCheck(req, res, next) {
@@ -317,13 +318,38 @@ const deps = {
 // Health check — para monitoramento/liveness probe
 app.get('/health', (req, res) => res.json({ ok: true, uptime: Math.floor(process.uptime()) }));
 
-app.use('/api', require('./routes/auth')(deps));
-app.use('/api', require('./routes/users')(deps));
-app.use('/api', require('./routes/empresas')(deps));
-app.use('/api', require('./routes/contas')(deps));
-app.use('/api', require('./routes/lancamentos')(deps));
-app.use('/api', require('./routes/fornecedores')(deps));
-app.use('/api', require('./routes/recibos')(deps));
+// ── OpenAPI / Swagger UI ──────────────────────────────────────────────────
+try {
+  const swaggerUi  = require('swagger-ui-express');
+  const openapiSpec = require('./openapi');
+  app.get('/api/openapi.json', (req, res) => res.json(openapiSpec));
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, {
+    customSiteTitle: 'Plano de Contas API',
+    swaggerOptions: { persistAuthorization: true },
+  }));
+  logger.info('Swagger UI disponível em /api/docs');
+} catch(e) {
+  logger.warn('swagger-ui-express indisponível — /api/docs desabilitado', { err: e && e.message });
+}
+
+// ── Rotas da API — montadas em /api (legacy) e /api/v1 (contrato versionado) ──
+const _authRouter       = require('./routes/auth')(deps);
+const _usersRouter      = require('./routes/users')(deps);
+const _empresasRouter   = require('./routes/empresas')(deps);
+const _contasRouter     = require('./routes/contas')(deps);
+const _lancamentosRouter = require('./routes/lancamentos')(deps);
+const _fornecedoresRouter = require('./routes/fornecedores')(deps);
+const _recibosRouter    = require('./routes/recibos')(deps);
+
+for (const prefix of ['/api', '/api/v1']) {
+  app.use(prefix, _authRouter);
+  app.use(prefix, _usersRouter);
+  app.use(prefix, _empresasRouter);
+  app.use(prefix, _contasRouter);
+  app.use(prefix, _lancamentosRouter);
+  app.use(prefix, _fornecedoresRouter);
+  app.use(prefix, _recibosRouter);
+}
 
 // ── Exports e error handler ───────────────────────────────────────────────
 
@@ -349,9 +375,9 @@ app.use((err, req, res, _next) => {
 async function _runRetentionCleanup() {
   if (!db) return;
   try {
-    const [r1] = await db.pool.query("DELETE FROM lancamento WHERE deleted_at IS NOT NULL AND deleted_at < DATE_SUB(NOW(), INTERVAL 90 DAY)");
-    const [r2] = await db.pool.query("DELETE FROM conta      WHERE deleted_at IS NOT NULL AND deleted_at < DATE_SUB(NOW(), INTERVAL 90 DAY)");
-    const [r3] = await db.pool.query("DELETE FROM audit_log  WHERE `when` < DATE_SUB(NOW(), INTERVAL 1 YEAR)");
+    const [r1] = await db.pool.query(`DELETE FROM lancamento WHERE deleted_at IS NOT NULL AND deleted_at < DATE_SUB(NOW(), INTERVAL ${cfg.lgpd.retentionDays} DAY)`);
+    const [r2] = await db.pool.query(`DELETE FROM conta      WHERE deleted_at IS NOT NULL AND deleted_at < DATE_SUB(NOW(), INTERVAL ${cfg.lgpd.retentionDays} DAY)`);
+    const [r3] = await db.pool.query(`DELETE FROM audit_log  WHERE \`when\` < DATE_SUB(NOW(), INTERVAL ${cfg.lgpd.auditLogDays} DAY)`);
     const [r4] = await db.pool.query("DELETE FROM refresh_token WHERE expires_at < NOW()");
     const total = (r1.affectedRows||0) + (r2.affectedRows||0) + (r3.affectedRows||0) + (r4.affectedRows||0);
     if (total > 0) logger.info('[retention] Purge concluído', { lancamentos: r1.affectedRows, contas: r2.affectedRows, auditLog: r3.affectedRows, tokens: r4.affectedRows });
