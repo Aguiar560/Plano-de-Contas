@@ -771,6 +771,18 @@
           <div class="report-sidebar">
             <div class="report-sidebar-section-title">Tipo de Relatório</div>
 
+            <!-- No mobile este select fica visível no lugar dos botões abaixo -->
+            <select id="relTipo" style="display:none">
+              <option value="dre">DRE</option>
+              <option value="sintetico">Sintético</option>
+              <option value="analitico">Analítico</option>
+              <option value="resumo">Resumo Mensal</option>
+              <option value="fluxo">Fluxo de Caixa</option>
+              <option value="estrutura">Estrutura do Plano</option>
+              <option value="orcamento">Orçamento vs Realizado</option>
+              <option value="resumo_diario">Resumo Diário</option>
+            </select>
+
             <button class="report-type-btn active" data-relview="dre">
               <span class="report-type-name">DRE</span>
               <span class="report-type-desc">Demonstração do Resultado</span>
@@ -826,17 +838,6 @@
               </button>
             </div>
 
-            <!-- Hidden select kept for report.js compatibility -->
-            <select id="relTipo" style="display:none">
-              <option value="dre">DRE</option>
-              <option value="sintetico">Sintético</option>
-              <option value="analitico">Analítico</option>
-              <option value="resumo">Resumo Mensal</option>
-              <option value="fluxo">Fluxo de Caixa</option>
-              <option value="estrutura">Estrutura do Plano</option>
-              <option value="orcamento">Orçamento vs Realizado</option>
-              <option value="resumo_diario">Resumo Diário</option>
-            </select>
           </div>
 
           <!-- Report output -->

@@ -437,8 +437,12 @@ html, body {
   align-items: center;
   gap: 6px;
   margin-bottom: 20px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.period-bar::-webkit-scrollbar { display: none; }
 
 .period-btn {
   padding: 6px 14px;
@@ -3277,6 +3281,11 @@ body.sidebar-open .btn-hamburger span:nth-child(3) { transform: translateY(-7px)
 
   /* ── Toolbar / filter bar ── */
   .toolbar, .filter-bar { flex-wrap: wrap; gap: 8px; }
+
+  /* ── Dashboard period bar: itens compactos, sem quebra de linha ── */
+  .period-btn { padding: 5px 10px; font-size: 12px; white-space: nowrap; }
+  .period-sep  { display: none; }
+  .period-date { padding: 5px 6px; font-size: 12px; width: 122px; flex-shrink: 0; }
 
   /* ── Recibo / receipt layout ── */
   .recibo-grid, .receipt-layout { grid-template-columns: 1fr; }
