@@ -273,20 +273,41 @@ class PlanoContasRepository {
   get root()     { return this._root; }
 
   /**
-   * Carrega a árvore de contas do banco via GET /api/contas.
-   * Substitui completamente o estado em memória e o localStorage.
+   * Carrega a árvore de contas do banco.
+   * CQRS: duas chamadas paralelas — GET /api/contas (estrutura) e
+   * GET /api/lancamentos?ano=XXXX (dados). Lançamentos são distribuídos
+   * por conta_id após construção da árvore.
    * Retorna true se bem sucedido, false se falhar (modo offline).
    */
   async carregarDoBanco(ano) {
     const anoAlvo = ano || new Date().getFullYear();
     try {
-      const base = (typeof API_BASE !== 'undefined') ? API_BASE : ((location && location.protocol === 'file:') ? 'http://localhost:3000' : '');
-      const resp = await fetch(base + '/api/contas?ano=' + anoAlvo, { credentials: 'include' });
-      if (!resp.ok) return false;
-      const { ok, contas } = await resp.json();
+      const base = (typeof API_BASE !== 'undefined') ? API_BASE : ((location && location.protocol === 'file:') ? 'http://localhost:3001' : '');
+
+      // Duas chamadas paralelas: estrutura + lançamentos do ano
+      const [respContas, respLancs] = await Promise.all([
+        fetch(base + '/api/contas', { credentials: 'include' }),
+        fetch(base + '/api/lancamentos?ano=' + anoAlvo, { credentials: 'include' }),
+      ]);
+      if (!respContas.ok) return false;
+      const { ok, contas } = await respContas.json();
       if (!ok || !contas) return false;
 
-      // Preserve itens and fornecedor_id from in-memory state — bank doesn't store these
+      // Lançamentos indexados por conta_id (falha não bloqueia estrutura)
+      const lancsPorContaId = {};
+      if (respLancs.ok) {
+        try {
+          const lancData = await respLancs.json();
+          if (lancData.ok && Array.isArray(lancData.lancamentos)) {
+            for (const l of lancData.lancamentos) {
+              if (!lancsPorContaId[l.conta_id]) lancsPorContaId[l.conta_id] = [];
+              lancsPorContaId[l.conta_id].push(l);
+            }
+          }
+        } catch(e) { /* lançamentos indisponíveis — carrega estrutura apenas */ }
+      }
+
+      // Preserva itens e fornecedor_id do estado local (não persistidos no banco)
       const savedLocals = {};
       if (this._root) {
         const _coletar = (c) => {
@@ -304,23 +325,24 @@ class PlanoContasRepository {
         _coletar(this._root);
       }
 
-      // Reconstruir árvore a partir da resposta JSON hierárquica
+      // Reconstruir árvore; conta.db_id = PK do banco para match com lancamentos
       const novoRoot = new ContaGerencial('');
-      _nextId = 1; // reset — IDs serão reatribuídos
+      _nextId = 1;
 
       const _construir = (nos, pai) => {
         nos.forEach(n => {
           const conta = new ContaGerencial(n.nome);
-          conta.codigo_banco = n.codigo; // guardar o codigo do banco
+          conta.db_id          = n.id;      // PK do banco — usado para distribuir lancamentos
+          conta.codigo_banco   = n.codigo;
           conta.natureza_banco = n.natureza;
-          conta.orcamento = parseFloat(n.orcamento) || 0;
+          conta.orcamento      = parseFloat(n.orcamento) || 0;
 
-          // Restaurar lançamentos vindos do banco; reaplica itens preservados do localStorage
-          conta.lancamentos = (n.lancamentos || []).map(l => {
+          // Atribuir lançamentos desta conta usando conta_id como chave
+          conta.lancamentos = (lancsPorContaId[n.id] || []).map(l => {
             const lanc = new Lancamento(l.tipo, parseFloat(l.valor), l.descricao || '', l.data);
             const _saved = (l.id && savedLocals[l.id]) || {};
-            lanc.db_id        = l.id;
-            lanc.itens        = _saved.itens || l.itens || null;
+            lanc.db_id         = l.id;
+            lanc.itens         = _saved.itens || l.itens || null;
             lanc.fornecedor_id = _saved.fornecedor_id || l.fornecedor_id || null;
             return lanc;
           });
@@ -335,7 +357,6 @@ class PlanoContasRepository {
       this._root = novoRoot;
       this.salvar();
       window.dispatchEvent(new Event('plano:loaded'));
-      // Sincroniza fornecedores com o banco após carregar o plano
       if (typeof window.fornRepo !== 'undefined' && typeof window.fornRepo.sincronizar === 'function') {
         window.fornRepo.sincronizar();
       }

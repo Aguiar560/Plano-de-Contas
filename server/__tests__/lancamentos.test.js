@@ -173,19 +173,17 @@ describe('Fluxo completo de lançamento — DB real', () => {
     lancamentoCriadoId = res.body.id;
   });
 
-  dbTest('lançamento criado aparece na árvore GET /api/contas', async () => {
+  dbTest('lançamento criado aparece em GET /api/lancamentos?ano=2026 (CQRS)', async () => {
     if (!lancamentoCriadoId) return;
 
     const res = await request(app)
-      .get('/api/contas?ano=2026')
+      .get('/api/lancamentos?ano=2026')
       .set('Authorization', 'Bearer ' + token);
     expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(Array.isArray(res.body.lancamentos)).toBe(true);
 
-    // Procurar o lançamento na conta "1"
-    const conta1 = res.body.contas.find(c => c.codigo === '1');
-    expect(conta1).toBeDefined();
-
-    const lanc = conta1.lancamentos.find(l => l.id === lancamentoCriadoId);
+    const lanc = res.body.lancamentos.find(l => l.id === lancamentoCriadoId);
     expect(lanc).toBeDefined();
     expect(lanc.tipo).toBe('credito');
     expect(lanc.valor).toBeCloseTo(99.99, 1);
@@ -223,14 +221,13 @@ describe('Fluxo completo de lançamento — DB real', () => {
     expect(res.body.id).toBe(lancamentoCriadoId);
   });
 
-  dbTest('após exclusão, lançamento não aparece mais na árvore', async () => {
+  dbTest('após exclusão, lançamento não aparece mais em GET /api/lancamentos?ano (CQRS)', async () => {
     if (!lancamentoCriadoId) return;
 
     const res = await request(app)
-      .get('/api/contas?ano=2026')
+      .get('/api/lancamentos?ano=2026')
       .set('Authorization', 'Bearer ' + token);
-    const conta1 = res.body.contas.find(c => c.codigo === '1');
-    const lanc = conta1?.lancamentos?.find(l => l.id === lancamentoCriadoId);
+    const lanc = (res.body.lancamentos || []).find(l => l.id === lancamentoCriadoId);
     expect(lanc).toBeUndefined();
   });
 
@@ -312,10 +309,32 @@ describe('Soft-delete de lançamento (com DB)', () => {
 // ── Paginação de GET /api/lancamentos ─────────────────────────────────────
 
 describe('GET /api/lancamentos — paginação e validação', () => {
-  test('sem conta_id retorna 400', async () => {
+  test('sem conta_id e sem ano retorna 400', async () => {
     const token = makeToken({ perfil: 'visualizador' });
     const res = await request(app)
       .get('/api/lancamentos')
+      .set('Authorization', 'Bearer ' + token);
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+  });
+
+  test('?ano=2026 sem conta_id retorna 200 ou 501 (modo CQRS)', async () => {
+    const token = makeToken({ perfil: 'visualizador' });
+    const res = await request(app)
+      .get('/api/lancamentos?ano=2026')
+      .set('Authorization', 'Bearer ' + token);
+    expect([200, 501]).toContain(res.status);
+    if (res.status === 200) {
+      expect(res.body.ok).toBe(true);
+      expect(Array.isArray(res.body.lancamentos)).toBe(true);
+      expect(res.body.ano).toBe(2026);
+    }
+  });
+
+  test('?ano=1800 retorna 400 (ano fora do range)', async () => {
+    const token = makeToken({ perfil: 'visualizador' });
+    const res = await request(app)
+      .get('/api/lancamentos?ano=1800')
       .set('Authorization', 'Bearer ' + token);
     expect(res.status).toBe(400);
     expect(res.body.ok).toBe(false);

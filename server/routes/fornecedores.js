@@ -2,20 +2,30 @@
 
 const express = require('express');
 
-module.exports = function fornecedoresRoutes({ db, logger, Joi, readLimiter, writeLimiter, jwtMiddleware, requireRole, cryptoUtils }) {
+/**
+ * fornecedoresRoutes — lógica HTTP para /api/fornecedores.
+ * SQL extraído para fornecedoresRepo (injetado).
+ */
+module.exports = function fornecedoresRoutes({
+  db, logger, Joi,
+  readLimiter, writeLimiter,
+  jwtMiddleware, requireRole,
+  cryptoUtils,
+  fornecedoresRepo,
+}) {
   const router = express.Router();
   const { encrypt, decrypt } = cryptoUtils;
 
-  const _fornSchema = Joi.object({
+  const _schema = Joi.object({
     tipoPessoa:   Joi.string().valid('fisica','juridica').required(),
     razaoSocial:  Joi.string().max(200).required(),
     nomeFantasia: Joi.string().max(200).allow('', null).optional(),
-    cnpj:         Joi.string().max(20).allow('',null).optional(),
-    cpf:          Joi.string().max(20).allow('',null).optional(),
+    cnpj:         Joi.string().max(20).allow('', null).optional(),
+    cpf:          Joi.string().max(20).allow('', null).optional(),
     status:       Joi.string().valid('ativo','inativo').default('ativo'),
   }).unknown(true);
 
-  function _fornRow(body, empresaId) {
+  function _toRow(body, empresaId) {
     const dados = { ...body };
     delete dados.cpf;
     delete dados.cnpj;
@@ -32,12 +42,10 @@ module.exports = function fornecedoresRoutes({ db, logger, Joi, readLimiter, wri
     return row;
   }
 
-  function _fornFromRow(row) {
+  function _fromRow(row) {
     try {
       const dados = JSON.parse(row.dados || '{}');
-      // CPF/CNPJ vêm APENAS das colunas criptografadas.
-      // dados.cpf/dados.cnpj são removidos pela migração _migrateEncryptCpf() no startup;
-      // não usar como fallback impede vazar dados em claro se ENCRYPT_KEY for rotacionada.
+      // CPF/CNPJ vêm APENAS das colunas criptografadas
       const cpf  = decrypt(row.cpf)  ?? null;
       const cnpj = decrypt(row.cnpj) ?? null;
       return { ...dados, id: row.id, status: row.status, cpf, cnpj };
@@ -49,11 +57,8 @@ module.exports = function fornecedoresRoutes({ db, logger, Joi, readLimiter, wri
     const empresaId = req.user.empresaId;
     if (!empresaId) return res.status(403).json({ ok:false, erro:'Sem empresa associada' });
     try {
-      const rows = await db.query(
-        "SELECT * FROM fornecedor WHERE empresa_id = ? AND status != ? ORDER BY razao_social",
-        [empresaId, 'excluido']
-      );
-      res.json({ ok:true, fornecedores: rows.map(_fornFromRow) });
+      const rows = await fornecedoresRepo.listAll(empresaId);
+      res.json({ ok:true, fornecedores: rows.map(_fromRow) });
     } catch(e) {
       logger.error('GET /api/fornecedores falhou', { err: e && e.message });
       res.status(500).json({ ok:false, erro:'Erro ao listar fornecedores' });
@@ -64,14 +69,14 @@ module.exports = function fornecedoresRoutes({ db, logger, Joi, readLimiter, wri
     if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
     const empresaId = req.user.empresaId;
     if (!empresaId) return res.status(403).json({ ok:false, erro:'Sem empresa associada' });
-    const { error, value } = _fornSchema.validate(req.body);
+    const { error, value } = _schema.validate(req.body);
     if (error) return res.status(400).json({ ok:false, erro: error.details[0].message });
     try {
-      const row = _fornRow(value, empresaId);
+      const row = _toRow(value, empresaId);
       row.created_at = new Date();
       row.updated_at = new Date();
-      const [ins] = await db.pool.query('INSERT INTO fornecedor SET ?', [row]);
-      res.json({ ok:true, id: ins.insertId, fornecedor: { ...value, id: ins.insertId } });
+      const id = await fornecedoresRepo.insert(row);
+      res.json({ ok:true, id, fornecedor: { ...value, id } });
     } catch(e) {
       logger.error('POST /api/fornecedores falhou', { err: e && e.message });
       res.status(500).json({ ok:false, erro:'Erro ao salvar fornecedor' });
@@ -84,13 +89,13 @@ module.exports = function fornecedoresRoutes({ db, logger, Joi, readLimiter, wri
     if (!empresaId) return res.status(403).json({ ok:false, erro:'Sem empresa associada' });
     const id = parseInt(req.params.id, 10);
     if (!id) return res.status(400).json({ ok:false, erro:'ID inválido' });
-    const { error, value } = _fornSchema.validate(req.body);
+    const { error, value } = _schema.validate(req.body);
     if (error) return res.status(400).json({ ok:false, erro: error.details[0].message });
     try {
-      const row = _fornRow(value);
+      const row = _toRow(value);
       row.updated_at = new Date();
-      const [r] = await db.pool.query('UPDATE fornecedor SET ? WHERE id = ? AND empresa_id = ?', [row, id, empresaId]);
-      if (r.affectedRows === 0) return res.status(404).json({ ok:false, erro:'Fornecedor não encontrado' });
+      const affected = await fornecedoresRepo.update(id, empresaId, row);
+      if (affected === 0) return res.status(404).json({ ok:false, erro:'Fornecedor não encontrado' });
       res.json({ ok:true });
     } catch(e) {
       logger.error('PUT /api/fornecedores falhou', { err: e && e.message });
@@ -105,11 +110,8 @@ module.exports = function fornecedoresRoutes({ db, logger, Joi, readLimiter, wri
     const id = parseInt(req.params.id, 10);
     if (!id) return res.status(400).json({ ok:false, erro:'ID inválido' });
     try {
-      const [r] = await db.pool.query(
-        "UPDATE fornecedor SET status='excluido', updated_at=NOW() WHERE id = ? AND empresa_id = ?",
-        [id, empresaId]
-      );
-      if (r.affectedRows === 0) return res.status(404).json({ ok:false, erro:'Fornecedor não encontrado' });
+      const affected = await fornecedoresRepo.softDelete(id, empresaId);
+      if (affected === 0) return res.status(404).json({ ok:false, erro:'Fornecedor não encontrado' });
       res.json({ ok:true });
     } catch(e) {
       logger.error('DELETE /api/fornecedores falhou', { err: e && e.message });

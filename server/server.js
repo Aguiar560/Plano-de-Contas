@@ -261,133 +261,32 @@ const db = (() => {
   try { return require('./db'); } catch(e) { logger.warn('DB helper indisponível', { err: e && e.message }); return null; }
 })();
 
-// ── Migrações idempotentes de schema e índices ────────────────────────────
+// ── Migrações versionadas ─────────────────────────────────────────────────
 // Promise exportada como app.migrationsReady — testes aguardam no beforeAll.
-async function _runMigrations() {
-  if (!db) return;
-  const addCol = async (tbl, col, def) => {
-    try { await db.query(`ALTER TABLE \`${tbl}\` ADD COLUMN \`${col}\` ${def}`); }
-    catch(e) { if (!e || e.errno !== 1060) throw e; }
-  };
-  const addIdx = async (tbl, name, cols) => {
-    try { await db.query(`ALTER TABLE \`${tbl}\` ADD INDEX \`${name}\` (${cols})`); }
-    catch(e) { if (!e || e.errno !== 1061) throw e; }
-  };
-  const modifyCol = async (tbl, col, def) => {
-    try { await db.query(`ALTER TABLE \`${tbl}\` MODIFY COLUMN \`${col}\` ${def}`); }
-    catch(e) { /* ignora se já foi modificado */ }
-  };
-
-  await addCol('lancamento', 'fornecedor_id', 'INT UNSIGNED DEFAULT NULL');
-  await addCol('conta',      'updated_at',    'DATETIME DEFAULT NULL');
-  await addCol('lancamento', 'updated_at',    'DATETIME DEFAULT NULL');
-
-  await addIdx('lancamento', 'idx_lanc_conta_del',  '`conta_id`, `deleted_at`');
-  await addIdx('lancamento', 'idx_lanc_data_del',   '`data`, `deleted_at`');
-  await addIdx('lancamento', 'idx_lanc_fornecedor', '`fornecedor_id`');
-
-  await addIdx('conta', 'idx_conta_del_codigo',  '`deleted_at`, `codigo`');
-  await addIdx('conta', 'idx_conta_parent_del',  '`parent_id`, `deleted_at`');
-
-  await addIdx('fornecedor', 'idx_forn_cpf',  '`cpf`');
-  await addIdx('fornecedor', 'idx_forn_cnpj', '`cnpj`');
-
-  await addIdx('recibo', 'idx_recibo_ano', '`ano`');
-
-  // Segurança: expandir colunas de CPF/CNPJ para suportar valor criptografado
-  await modifyCol('fornecedor', 'cpf',           'VARCHAR(300) DEFAULT NULL');
-  await modifyCol('fornecedor', 'cnpj',          'VARCHAR(300) DEFAULT NULL');
-  await modifyCol('recibo',     'fornecedor_cpf', 'VARCHAR(300) DEFAULT NULL');
-
-  // Segurança: coluna para indicar que o refresh token está hasheado (SHA-256)
-  await addCol('refresh_token', 'hashed', 'TINYINT(1) NOT NULL DEFAULT 0');
-
-  // Purge único de refresh tokens não-hasheados legados (força re-login uma vez)
-  try {
-    const [[{ cnt }]] = await db.pool.query('SELECT COUNT(*) AS cnt FROM refresh_token WHERE hashed = 0');
-    if (cnt > 0) {
-      await db.pool.query('DELETE FROM refresh_token WHERE hashed = 0');
-      logger.info('[security] Refresh tokens legados removidos — usuários precisarão logar novamente.');
-    }
-  } catch(e) { /* refresh_token pode não ter a coluna ainda em instâncias muito antigas */ }
-
-  // Multi-tenancy v4: empresa_id em tabelas de dados
-  // DEFAULT 1 faz o MySQL já preencher linhas existentes automaticamente ao adicionar a coluna
-  await addCol('conta',      'empresa_id', 'BIGINT UNSIGNED NOT NULL DEFAULT 1');
-  await addCol('lancamento', 'empresa_id', 'BIGINT UNSIGNED NOT NULL DEFAULT 1');
-  await addCol('fornecedor', 'empresa_id', 'BIGINT UNSIGNED NOT NULL DEFAULT 1');
-  await addCol('recibo',     'empresa_id', 'BIGINT UNSIGNED NOT NULL DEFAULT 1');
-  await addCol('audit_log',  'empresa_id', 'BIGINT UNSIGNED DEFAULT NULL');
-
-  await addIdx('conta',      'idx_conta_empresa',  '`empresa_id`');
-  await addIdx('lancamento', 'idx_lanc_empresa',   '`empresa_id`');
-  await addIdx('fornecedor', 'idx_forn_empresa',   '`empresa_id`');
-  await addIdx('usuario',    'idx_usuario_empresa','`empresa_id`');
-
-  // Primeiro login: forçar troca de senha
-  await addCol('usuario', 'must_change_password', 'TINYINT(1) NOT NULL DEFAULT 0');
-
-  // Segurança: tabela para persistir JTIs revogados entre reinicializações
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS \`revoked_token\` (
-      \`jti\`        VARCHAR(64)  NOT NULL,
-      \`expires_at\` DATETIME     NOT NULL,
-      PRIMARY KEY (\`jti\`),
-      INDEX \`idx_revtok_exp\` (\`expires_at\`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
-  `);
-}
-const migrationsReady = _runMigrations()
+const { runMigrations } = require('./migrations/runner');
+const MIGRATIONS = [
+  require('./migrations/001_core_tables'),
+  require('./migrations/002_alter_columns_indexes'),
+  require('./migrations/003_optional_tables'),
+  require('./migrations/004_purge_unhashed_tokens'),
+];
+const migrationsReady = runMigrations(db, logger, MIGRATIONS)
   .catch(e => logger.warn('Migrações falharam', { err: e && e.message }));
-
-// ── Inicialização de tabelas opcionais ────────────────────────────────────
-
-async function _ensureFornecedorTable() {
-  if (!db) return;
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS \`fornecedor\` (
-      \`id\`          INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-      \`tipo_pessoa\`  VARCHAR(20)   NOT NULL DEFAULT 'juridica',
-      \`razao_social\` VARCHAR(200)  NOT NULL DEFAULT '',
-      \`nome_fantasia\`VARCHAR(200)  DEFAULT NULL,
-      \`cnpj\`         VARCHAR(20)   DEFAULT NULL,
-      \`cpf\`          VARCHAR(20)   DEFAULT NULL,
-      \`status\`       VARCHAR(20)   NOT NULL DEFAULT 'ativo',
-      \`dados\`        TEXT          NOT NULL,
-      \`created_at\`   DATETIME      DEFAULT NULL,
-      \`updated_at\`   DATETIME      DEFAULT NULL,
-      PRIMARY KEY (\`id\`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
-  `);
-}
-
-async function _ensureReciboTable() {
-  if (!db) return;
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS \`recibo\` (
-      \`id\`              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-      \`numero\`          INT            NOT NULL,
-      \`ano\`             INT            NOT NULL,
-      \`lancamento_id\`   BIGINT UNSIGNED DEFAULT NULL,
-      \`conta_codigo\`    VARCHAR(64)    DEFAULT NULL,
-      \`fornecedor_nome\` VARCHAR(200)   NOT NULL DEFAULT '',
-      \`fornecedor_cpf\`  VARCHAR(20)    DEFAULT NULL,
-      \`data\`            DATE           NOT NULL,
-      \`valor\`           DECIMAL(19,2)  NOT NULL DEFAULT 0,
-      \`descricao\`       TEXT           DEFAULT NULL,
-      \`emitido_por\`     INT            DEFAULT NULL,
-      \`created_at\`      DATETIME       DEFAULT NULL,
-      \`assinado_em\`     DATETIME       DEFAULT NULL,
-      PRIMARY KEY (\`id\`),
-      UNIQUE KEY \`ux_recibo_num_ano\` (\`numero\`, \`ano\`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
-  `);
-  try { await db.query('ALTER TABLE `recibo` ADD COLUMN `assinado_em` DATETIME DEFAULT NULL'); } catch(e) { if (e.errno !== 1060) throw e; }
-}
 
 // ── Rotas da API ──────────────────────────────────────────────────────────
 
 const cryptoUtils = require('./crypto-utils');
+
+// ── Repositórios (injetados nas rotas) ────────────────────────────────────
+const createContasRepo       = require('./repositories/contas.repo');
+const createLancamentosRepo  = require('./repositories/lancamentos.repo');
+const createFornecedoresRepo = require('./repositories/fornecedores.repo');
+const createRecibosRepo      = require('./repositories/recibos.repo');
+
+const contasRepo       = db ? createContasRepo({ db, logger })       : null;
+const lancamentosRepo  = db ? createLancamentosRepo({ db, logger })  : null;
+const fornecedoresRepo = db ? createFornecedoresRepo({ db, logger }) : null;
+const recibosRepo      = db ? createRecibosRepo({ db, logger })      : null;
 
 // ── Validação de ENCRYPT_KEY ──────────────────────────────────────────────
 if (!process.env.ENCRYPT_KEY) {
@@ -412,6 +311,7 @@ const deps = {
   jwtMiddleware, requireAdmin, requireRole, requireSuperAdmin,
   readLimiter, writeLimiter, authLimiter, refreshLimiter,
   _decodeMojibake, cryptoUtils, revokedTokens, revokeJti,
+  contasRepo, lancamentosRepo, fornecedoresRepo, recibosRepo,
 };
 
 // Health check — para monitoramento/liveness probe
@@ -494,8 +394,6 @@ if (require.main === module) {
       await usersDb.init(pool);
       const defaultEmpresaId = await usersDb.ensureDefaultEmpresa();
       await usersDb.ensureAdmin(defaultEmpresaId);
-      await _ensureFornecedorTable();
-      await _ensureReciboTable();
     } catch(e) { console.error('usersDb init error:', e.message); }
     const server = app.listen(PORT, () => logger.info('Servidor iniciado', { url: 'http://localhost:' + PORT }));
     server.on('error', (e) => logger.error('Erro no servidor HTTP', { err: e.message }));

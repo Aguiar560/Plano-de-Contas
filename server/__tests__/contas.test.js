@@ -7,7 +7,7 @@
  *    (variável SKIP_DB_TESTS=true para pular em CI sem banco)
  *
  * Cobre:
- *  - GET /api/contas: retorno de árvore com lançamentos
+ *  - GET /api/contas: retorno de árvore SEM lançamentos (CQRS — estrutura apenas)
  *  - POST /api/contas: criar conta com auth, sem auth, nome ausente
  *  - PUT /api/contas/:codigo: renomear, não encontrada, sem auth
  *  - DELETE /api/contas/:codigo: conta com filho bloqueada, não encontrada, sem auth
@@ -126,14 +126,15 @@ describe('GET /api/contas — estrutura da árvore', () => {
   let token;
   beforeAll(() => { token = makeToken({ perfil: 'admin' }); });
 
-  dbTest('retorna array contas com campos obrigatórios', async () => {
+  dbTest('retorna array contas com campos obrigatórios (sem lançamentos — CQRS)', async () => {
     const res = await request(app)
       .get('/api/contas')
       .set('Authorization', 'Bearer ' + token);
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(Array.isArray(res.body.contas)).toBe(true);
-    expect(typeof res.body.ano).toBe('number');
+    // CQRS: GET /api/contas não retorna mais 'ano' nem lançamentos
+    expect(res.body.ano).toBeUndefined();
 
     // Verificar estrutura de cada conta raiz
     for (const c of res.body.contas) {
@@ -142,33 +143,8 @@ describe('GET /api/contas — estrutura da árvore', () => {
       expect(typeof c.nome).toBe('string');
       expect(['entrada', 'saida']).toContain(c.natureza);
       expect(Array.isArray(c.filhos)).toBe(true);
-      expect(Array.isArray(c.lancamentos)).toBe(true);
-    }
-  });
-
-  dbTest('cada lançamento tem campos obrigatórios', async () => {
-    const res = await request(app)
-      .get('/api/contas')
-      .set('Authorization', 'Bearer ' + token);
-    expect(res.status).toBe(200);
-
-    const coletarLancs = (nos) => {
-      let all = [];
-      for (const n of nos) {
-        all = all.concat(n.lancamentos || []);
-        if (n.filhos) all = all.concat(coletarLancs(n.filhos));
-      }
-      return all;
-    };
-
-    const lancs = coletarLancs(res.body.contas);
-    for (const l of lancs) {
-      expect(typeof l.id).toBe('number');
-      expect(['credito', 'debito']).toContain(l.tipo);
-      expect(typeof l.valor).toBe('number');
-      expect(l.valor).toBeGreaterThan(0);
-      // data no formato YYYY-MM-DD
-      expect(l.data).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      // lançamentos NÃO são retornados na estrutura (CQRS)
+      expect(c.lancamentos).toBeUndefined();
     }
   });
 });
