@@ -91,12 +91,67 @@ document.getElementById('btnExportXMLConfig')?.addEventListener('click', () => {
 });
 
 // ── Reports view: sync type buttons with hidden select ─────────────────
+function _toggleSeletorContas(tipo) {
+  const wrap = document.getElementById('relContasSeletorWrap');
+  if (!wrap) return;
+  const mostrar = tipo === 'gerencial_conta';
+  wrap.style.display = mostrar ? '' : 'none';
+  if (mostrar) _popularSeletorContas();
+}
+
+function _popularSeletorContas() {
+  const lista = document.getElementById('relContasLista');
+  if (!lista || !repo?.root) return;
+  lista.innerHTML = '';
+
+  function addConta(conta, depth) {
+    const label = document.createElement('label');
+    label.style.cssText = `display:flex;align-items:center;gap:6px;padding:2px 0 2px ${depth * 14}px;cursor:pointer;user-select:none`;
+    label.dataset.nome = conta.nome.toLowerCase();
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = conta.id;
+    cb.style.accentColor = '#3b82f6';
+
+    const span = document.createElement('span');
+    span.textContent = (conta.codigo ? conta.codigo + ' · ' : '') + conta.nome;
+    span.style.color = depth === 0 ? '#1e293b' : '#475569';
+    if (depth === 0) span.style.fontWeight = '600';
+
+    label.append(cb, span);
+    lista.append(label);
+
+    let c = conta.firstChild;
+    while (c) { addConta(c, depth + 1); c = c.nextSibling; }
+  }
+
+  let r = repo.root.firstChild;
+  while (r) { addConta(r, 0); r = r.nextSibling; }
+}
+
+document.getElementById('relContaBusca')?.addEventListener('input', function () {
+  const q = this.value.toLowerCase().trim();
+  document.querySelectorAll('#relContasLista label').forEach(lbl => {
+    lbl.style.display = (!q || lbl.dataset.nome.includes(q)) ? '' : 'none';
+  });
+});
+
+document.getElementById('btnRelContasTodas')?.addEventListener('click', () => {
+  document.querySelectorAll('#relContasLista input[type=checkbox]').forEach(cb => { cb.checked = true; });
+});
+
+document.getElementById('btnRelContasNenhuma')?.addEventListener('click', () => {
+  document.querySelectorAll('#relContasLista input[type=checkbox]').forEach(cb => { cb.checked = false; });
+});
+
 document.querySelectorAll('.report-type-btn[data-relview]').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.report-type-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const relSelect = document.getElementById('relTipo');
     if (relSelect) relSelect.value = btn.dataset.relview;
+    _toggleSeletorContas(btn.dataset.relview);
   });
 });
 
@@ -108,6 +163,7 @@ if (relTipoSel) {
     document.querySelectorAll('.report-type-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.relview === val);
     });
+    _toggleSeletorContas(val);
   });
 }
 

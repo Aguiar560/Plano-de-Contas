@@ -787,6 +787,7 @@
               <option value="estrutura">Estrutura do Plano</option>
               <option value="orcamento">Orçamento vs Realizado</option>
               <option value="resumo_diario">Resumo Diário</option>
+              <option value="gerencial_conta">Gerencial por Conta</option>
             </select>
 
             <button class="report-type-btn active" data-relview="dre">
@@ -821,6 +822,10 @@
               <span class="report-type-name">Resumo Diário</span>
               <span class="report-type-desc">Saldo inicial, entradas, saídas e saldo final por dia</span>
             </button>
+            <button class="report-type-btn" data-relview="gerencial_conta">
+              <span class="report-type-name">Gerencial por Conta</span>
+              <span class="report-type-desc">Totais mensais por conta selecionada</span>
+            </button>
 
             <div class="report-sidebar-section-title" style="margin-top:8px">Período</div>
 
@@ -831,6 +836,17 @@
             <div>
               <div class="input-label">Data Final</div>
               <input type="date" id="relDtFim" class="input-text" />
+            </div>
+
+            <!-- Seletor de contas: visível apenas para Gerencial por Conta -->
+            <div id="relContasSeletorWrap" style="display:none">
+              <div class="report-sidebar-section-title" style="margin-top:8px">Contas</div>
+              <input type="text" id="relContaBusca" class="input-text" placeholder="Buscar conta…" style="margin-bottom:6px;font-size:12px" />
+              <div id="relContasLista" style="max-height:200px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;background:#f8fafc;font-size:12px;line-height:1.6"></div>
+              <div style="display:flex;gap:6px;margin-top:5px">
+                <button type="button" id="btnRelContasTodas" class="btn btn-outline" style="font-size:11px;padding:4px 10px;flex:1">Todas</button>
+                <button type="button" id="btnRelContasNenhuma" class="btn btn-outline" style="font-size:11px;padding:4px 10px;flex:1">Nenhuma</button>
+              </div>
             </div>
 
             <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
