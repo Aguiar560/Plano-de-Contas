@@ -105,6 +105,17 @@ function gerarRelatorio() {
 
   relatorioResultado.innerHTML = html;
 
+  // Orientação landscape apenas para Gerencial por Conta (muitas colunas de meses)
+  let _printPageStyle = document.getElementById('rel-print-page');
+  if (!_printPageStyle) {
+    _printPageStyle = document.createElement('style');
+    _printPageStyle.id = 'rel-print-page';
+    document.head.appendChild(_printPageStyle);
+  }
+  _printPageStyle.textContent = tipo === 'gerencial_conta'
+    ? '@media print { @page { size: A4 landscape; margin: 10mm 12mm; } }'
+    : '';
+
   // Gráfico de barras no Resumo Mensal
   if (tipo === 'resumo') renderGraficoResumo(lancamentos);
   // Gráfico de pizza no DRE

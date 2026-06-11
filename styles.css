@@ -2973,10 +2973,14 @@ kbd {
   .rel-table td { padding: 5px 8px !important; }
 
   /* Headings */
-  .rel-section { margin-bottom: 12px !important; }
+  .rel-section { margin-bottom: 12px !important; overflow: visible !important; }
 
   /* Avoid row splits across pages */
   tr { page-break-inside: avoid; }
+
+  /* Gerencial por Conta: colunas compactas para caber na folha */
+  #relatorioResultado .rel-table th,
+  #relatorioResultado .rel-table td { padding: 4px 5px !important; font-size: 10px !important; white-space: nowrap; }
 
   body { background: #fff; }
 }
