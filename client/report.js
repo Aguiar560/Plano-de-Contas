@@ -1441,59 +1441,75 @@ function relatorioGerencialPorConta(dtI, dtF) {
   }
   const nomeMes = m => `${MESES_PT[m.getMonth()]}/${String(m.getFullYear()).slice(2)}`;
 
-  let html = cabecalhoRel('Gerencial por Conta', dtI, dtF);
-
-  // Cabeçalho da tabela
-  html += `<div class="rel-section" style="overflow-x:auto"><table class="rel-table" style="min-width:100%">
-    <thead><tr>
-      <th>Conta</th>
-      ${meses.map(m => `<th style="text-align:right;white-space:nowrap">${nomeMes(m)}</th>`).join('')}
-      <th style="text-align:right">Total</th>
-    </tr></thead>
-    <tbody>`;
-
-  const totaisPorMes = new Array(meses.length).fill(0);
-  let totalGeral = 0;
-
-  for (const conta of selecionadas) {
-    const lancs = coletarLancamentosReais(conta, dtI, dtF);
+  // Pré-computa lançamentos filtrados por conta para o período completo
+  const dadosContas = selecionadas.map(conta => {
     const isEntrada = conta.tipo === 'Entrada';
-
-    // Filtra e normaliza pelo tipo da conta
+    const lancs = coletarLancamentosReais(conta, dtI, dtF);
     const filtrados = isEntrada
       ? lancs.filter(l => l.tipo === 'credito')
       : lancs.filter(l => l.tipo === 'debito').map(l => ({ ...l, valor: Math.abs(l.valor) }));
+    return { conta, isEntrada, filtrados };
+  });
 
-    const valoresMes = meses.map((m, i) => {
-      const y = m.getFullYear(), mo = m.getMonth();
-      const v = filtrados
-        .filter(l => l.data.getFullYear() === y && l.data.getMonth() === mo)
-        .reduce((s, l) => s + l.valor, 0);
-      totaisPorMes[i] += v;
-      return v;
-    });
+  // Renderiza uma tabela para o grupo de meses fornecido
+  function _renderTabela(mesesGrupo) {
+    let t = `<div class="rel-section" style="overflow-x:auto"><table class="rel-table" style="min-width:100%">
+      <thead><tr>
+        <th>Conta</th>
+        ${mesesGrupo.map(m => `<th style="text-align:right;white-space:nowrap">${nomeMes(m)}</th>`).join('')}
+        <th style="text-align:right">Total</th>
+      </tr></thead>
+      <tbody>`;
 
-    const totalConta = valoresMes.reduce((s, v) => s + v, 0);
-    totalGeral += totalConta;
-    const cor = isEntrada ? '#16a34a' : '#dc2626';
+    const totaisMes = new Array(mesesGrupo.length).fill(0);
+    let totalGeral = 0;
 
-    html += `<tr>
-      <td style="font-size:13px">${escapeHtml(conta.nome)}</td>
-      ${valoresMes.map(v => `<td class="td-num" style="color:${v !== 0 ? cor : '#cbd5e1'}">${v !== 0 ? formatMoeda(v) : '—'}</td>`).join('')}
-      <td class="td-num" style="font-weight:700;color:${cor}">${formatMoeda(totalConta)}</td>
-    </tr>`;
+    for (const { conta, isEntrada, filtrados } of dadosContas) {
+      const cor = isEntrada ? '#16a34a' : '#dc2626';
+      const valoresMes = mesesGrupo.map((m, i) => {
+        const y = m.getFullYear(), mo = m.getMonth();
+        const v = filtrados
+          .filter(l => l.data.getFullYear() === y && l.data.getMonth() === mo)
+          .reduce((s, l) => s + l.valor, 0);
+        totaisMes[i] += v;
+        return v;
+      });
+      const totalConta = valoresMes.reduce((s, v) => s + v, 0);
+      totalGeral += totalConta;
+
+      t += `<tr>
+        <td style="font-size:13px">${escapeHtml(conta.nome)}</td>
+        ${valoresMes.map(v => `<td class="td-num" style="color:${v !== 0 ? cor : '#cbd5e1'}">${v !== 0 ? formatMoeda(v) : '—'}</td>`).join('')}
+        <td class="td-num" style="font-weight:700;color:${cor}">${formatMoeda(totalConta)}</td>
+      </tr>`;
+    }
+
+    if (selecionadas.length > 1) {
+      t += `<tr style="border-top:2px solid #e2e8f0;background:#f8fafc">
+        <td style="font-weight:700;font-size:12px;color:#475569">TOTAL</td>
+        ${totaisMes.map(v => `<td class="td-num" style="font-weight:700;color:#1e293b">${v !== 0 ? formatMoeda(v) : '—'}</td>`).join('')}
+        <td class="td-num" style="font-weight:700;color:#1e293b">${formatMoeda(totalGeral)}</td>
+      </tr>`;
+    }
+
+    t += `</tbody></table></div>`;
+    return t;
   }
 
-  // Linha de totais (apenas se mais de uma conta selecionada)
-  if (selecionadas.length > 1) {
-    html += `<tr style="border-top:2px solid #e2e8f0;background:#f8fafc">
-      <td style="font-weight:700;font-size:12px;color:#475569">TOTAL</td>
-      ${totaisPorMes.map(v => `<td class="td-num" style="font-weight:700;color:#1e293b">${v !== 0 ? formatMoeda(v) : '—'}</td>`).join('')}
-      <td class="td-num" style="font-weight:700;color:#1e293b">${formatMoeda(totalGeral)}</td>
-    </tr>`;
+  let html = cabecalhoRel('Gerencial por Conta', dtI, dtF);
+
+  // Até 12 meses: tabela única. Mais de 12: uma tabela por ano
+  if (meses.length <= 12) {
+    html += _renderTabela(meses);
+  } else {
+    for (let ano = dtI.getFullYear(); ano <= dtF.getFullYear(); ano++) {
+      const mesesAno = meses.filter(m => m.getFullYear() === ano);
+      if (mesesAno.length === 0) continue;
+      html += `<div style="font-size:14px;font-weight:700;color:#475569;margin:20px 0 6px;padding-bottom:6px;border-bottom:1px solid #e2e8f0">${ano}</div>`;
+      html += _renderTabela(mesesAno);
+    }
   }
 
-  html += `</tbody></table></div>`;
   return html;
 }
 
