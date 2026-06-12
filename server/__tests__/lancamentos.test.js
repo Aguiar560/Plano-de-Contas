@@ -21,6 +21,24 @@ const { app, getAdminToken, makeToken } = require('./helpers');
 const SKIP_DB = process.env.SKIP_DB_TESTS === 'true';
 const dbTest  = SKIP_DB ? test.skip : test;
 
+// Descrições usadas pelos lançamentos criados nos testes — qualquer registro
+// com uma delas é lixo de teste e deve ser removido DEFINITIVAMENTE do banco
+// (hard delete, não soft delete, para não acumular resíduos a cada execução).
+const TEST_MARKERS = [
+  'Lançamento de teste automatizado',
+  'Lançamento editado pelo teste',
+  'softdelete-test',
+];
+
+async function limparResiduosDeTeste() {
+  if (SKIP_DB) return;
+  const db = require('../db');
+  const placeholders = TEST_MARKERS.map(() => '?').join(', ');
+  await db.pool
+    .query(`DELETE FROM lancamento WHERE descricao IN (${placeholders})`, TEST_MARKERS)
+    .catch(() => {});
+}
+
 // ── Testes sem DB (autorização e validação) ────────────────────────────────
 
 describe('POST /api/lancamentos — validação sem DB', () => {
@@ -138,22 +156,11 @@ describe('Fluxo completo de lançamento — DB real', () => {
   beforeAll(async () => {
     token = await getAdminToken();
     // Limpar resíduos de execuções anteriores que falharam antes do cleanup
-    if (!SKIP_DB) {
-      const db = require('../db');
-      await db.pool.query(
-        "UPDATE lancamento SET deleted_at = NOW() WHERE deleted_at IS NULL AND descricao IN ('Lançamento de teste automatizado', 'Lançamento editado pelo teste')"
-      ).catch(() => {});
-    }
+    await limparResiduosDeTeste();
   });
 
-  // Safety net: garante remoção mesmo se o teste de exclusão falhou
-  afterAll(async () => {
-    if (!lancamentoCriadoId || !token) return;
-    await request(app)
-      .delete('/api/lancamentos/' + lancamentoCriadoId)
-      .set('Authorization', 'Bearer ' + token)
-      .catch(() => {}); // ignora erro se já foi removido
-  });
+  // Safety net: remove tudo que este describe criou, mesmo se algum teste falhou
+  afterAll(limparResiduosDeTeste);
 
   dbTest('cria lançamento na conta "1" e retorna id numérico', async () => {
     const res = await request(app)
@@ -267,6 +274,9 @@ describe('Soft-delete de lançamento (com DB)', () => {
     if (SKIP_DB) return;
     token = await getAdminToken();
   });
+
+  // Remove definitivamente o lançamento 'softdelete-test', mesmo se algum teste falhou
+  afterAll(limparResiduosDeTeste);
 
   dbTest('cria lançamento para testar soft-delete', async () => {
     const res = await request(app)
