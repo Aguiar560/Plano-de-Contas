@@ -8,15 +8,24 @@
  * Em banco já existente, as migrações rodam como no-ops e são registradas como aplicadas.
  */
 
+// DDL portável: `applied_at` SEM `DEFAULT CURRENT_TIMESTAMP` porque MySQL antigo
+// (5.1) rejeita default CURRENT_TIMESTAMP em coluna DATETIME (ER_INVALID_DEFAULT).
+// O timestamp é gravado via NOW() no INSERT de registro.
+const _CREATE_MIGRATIONS_TABLE = `
+  CREATE TABLE \`schema_migrations\` (
+    \`version\`    INT UNSIGNED NOT NULL,
+    \`name\`       VARCHAR(255) NOT NULL DEFAULT '',
+    \`applied_at\` DATETIME     NULL DEFAULT NULL,
+    PRIMARY KEY (\`version\`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
+`;
+
 async function _ensureMigrationsTable(db) {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS \`schema_migrations\` (
-      \`version\`    INT UNSIGNED NOT NULL,
-      \`name\`       VARCHAR(255) NOT NULL,
-      \`applied_at\` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (\`version\`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
-  `);
+  await db.query(_CREATE_MIGRATIONS_TABLE.replace('CREATE TABLE', 'CREATE TABLE IF NOT EXISTS'));
+  // Obs.: se a tabela já existir com um formato legado/incompatível, o registro
+  // das migrações falha — mas isso é tratado de forma tolerante no loop (ver
+  // runMigrations): a migração ainda é APLICADA (idempotente) e apenas re-roda
+  // como no-op nos próximos boots. Não recriamos a tabela para evitar risco.
 }
 
 async function _appliedVersions(db) {
@@ -45,15 +54,22 @@ async function runMigrations(db, logger, migrations) {
     logger.info(`[migrations] Aplicando v${migration.version}: ${migration.name}`);
     try {
       await migration.up(db, logger);
-      await db.execute(
-        'INSERT INTO schema_migrations (version, name) VALUES (?, ?)',
-        [migration.version, migration.name]
-      );
-      logger.info(`[migrations] v${migration.version} aplicada.`);
     } catch(e) {
       logger.error(`[migrations] Falha na v${migration.version}: ${migration.name}`, { err: e && e.message });
       throw e;
     }
+    // Registro tolerante: uma falha ao gravar em schema_migrations (ex.: tabela
+    // de controle legada/incompatível) NÃO deve abortar o loop nem reverter a
+    // migração já aplicada — as migrações são idempotentes e re-rodam como no-op.
+    try {
+      await db.execute(
+        'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, NOW())',
+        [migration.version, migration.name]
+      );
+    } catch(e) {
+      logger.warn(`[migrations] v${migration.version} aplicada, mas o registro falhou (será re-tentado no próximo boot)`, { err: e && e.message });
+    }
+    logger.info(`[migrations] v${migration.version} aplicada.`);
   }
 }
 

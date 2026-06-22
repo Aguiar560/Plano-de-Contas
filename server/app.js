@@ -241,6 +241,7 @@ const MIGRATIONS = [
   require('./migrations/002_alter_columns_indexes'),
   require('./migrations/003_optional_tables'),
   require('./migrations/004_purge_unhashed_tokens'),
+  require('./migrations/005_ofx_fitid'),
 ];
 const migrationsReady = runMigrations(db, logger, MIGRATIONS)
   .catch(e => logger.warn('Migrações falharam', { err: e && e.message }));

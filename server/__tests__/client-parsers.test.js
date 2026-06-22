@@ -31,7 +31,7 @@ function parseOFX(text) {
     const dtPosted = get('DTPOSTED').slice(0, 8);
     const amt      = parseFloat(get('TRNAMT').replace(',', '.'));
     const memo     = get('MEMO') || get('NAME') || '';
-    const fitId    = get('FITID') || String(i);
+    const fitId    = get('FITID') || ('ofx|' + dtPosted + '|' + amt + '|' + memo);
 
     if (isNaN(amt)) return;
 
@@ -48,18 +48,31 @@ function parseOFX(text) {
   return txns;
 }
 
+function _parseNum(s) {
+  s = String(s == null ? '' : s).trim();
+  if (!s) return NaN;
+  const neg = /^-|-$|^\(/.test(s);
+  let body = s.replace(/[^\d.,]/g, '');
+  if (body.indexOf(',') >= 0) {
+    body = body.replace(/\./g, '').replace(',', '.');
+  }
+  const n = parseFloat(body);
+  if (isNaN(n)) return NaN;
+  return neg ? -Math.abs(n) : n;
+}
+
 function parseCSV(text) {
   const txns = [];
   const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return txns;
   const sep   = lines[0].includes(';') ? ';' : ',';
-  const start = /data|date|valor|value/i.test(lines[0]) ? 1 : 0;
+  const start = /data|date|valor|value|hist|descr/i.test(lines[0]) ? 1 : 0;
 
-  lines.slice(start).forEach((line, i) => {
+  lines.slice(start).forEach((line) => {
     const cols = line.split(sep).map(c => c.replace(/^["']|["']$/g, '').trim());
     if (cols.length < 2) return;
 
-    let data = '', descricao = '', valor = 0, tipo = 'debito';
-
+    let data = '';
     const rawDate = cols[0];
     const dmatch  = rawDate.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{2,4})/);
     if (dmatch) {
@@ -70,15 +83,27 @@ function parseCSV(text) {
       data = iso ? iso[0] : new Date().toISOString().slice(0,10);
     }
 
-    let valIdx = -1;
-    for (let c = 1; c < cols.length; c++) {
-      const n = parseFloat(cols[c].replace(/\./g, '').replace(',', '.'));
-      if (!isNaN(n) && n !== 0) { valIdx = c; valor = Math.abs(n); tipo = n < 0 ? 'debito' : 'credito'; break; }
-    }
+    let valIdx = -1, valor = 0, tipo = 'debito';
+    const pick = (pred) => {
+      for (let c = 1; c < cols.length; c++) {
+        if (!pred(cols[c])) continue;
+        const n = _parseNum(cols[c]);
+        if (!isNaN(n) && n !== 0) { valIdx = c; valor = Math.abs(n); tipo = n < 0 ? 'debito' : 'credito'; return true; }
+      }
+      return false;
+    };
+    if (!pick(s => /[,.\-()]/.test(s))) pick(() => true);
 
-    descricao = cols.filter((_, idx) => idx !== 0 && idx !== valIdx).join(' ').trim();
     if (!valor || !data) return;
-    txns.push({ fitId: 'csv_' + i, tipo, valor, descricao, data, importar: true });
+
+    const descricao = cols.filter((c, idx) => {
+      if (idx === 0 || idx === valIdx) return false;
+      const isMoney = /[,.]/.test(c) && !isNaN(_parseNum(c));
+      return !isMoney;
+    }).join(' ').trim();
+
+    const fitId = 'csv|' + data + '|' + valor + '|' + tipo + '|' + descricao;
+    txns.push({ fitId, tipo, valor, descricao, data, importar: true });
   });
 
   return txns;
@@ -228,6 +253,14 @@ describe('parseOFX — parsing de extratos OFX', () => {
     const txns = parseOFX(OFX_SAMPLE);
     expect(txns[0].fitId).toBe('20260501001');
   });
+
+  test('sem FITID, gera fitId estável por conteúdo (dedup ao reimportar)', () => {
+    const ofx = `<OFX><STMTTRN><TRNTYPE>DEBIT</TRNTYPE><DTPOSTED>20260601</DTPOSTED><TRNAMT>-99.90</TRNAMT><MEMO>Tarifa</MEMO></STMTTRN></OFX>`;
+    const a = parseOFX(ofx)[0].fitId;
+    const b = parseOFX(ofx)[0].fitId;
+    expect(a).toBe(b);
+    expect(a).toContain('ofx|');
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -328,6 +361,38 @@ describe('parseCSV — parsing de extratos CSV', () => {
     const csv = `01/05/2026,A,100\n02/05/2026,B,200`;
     const txns = parseCSV(csv);
     txns.forEach(t => expect(t.importar).toBe(true));
+  });
+
+  // ── Regressões: bugs corrigidos na revisão da importação OFX/CSV ──────────
+
+  test('valor com ponto decimal (1500.00) NÃO é inflado para 150000', () => {
+    const csv = `01/05/2026;Pagamento;1500.00`;
+    const txns = parseCSV(csv);
+    expect(txns[0].valor).toBeCloseTo(1500);
+  });
+
+  test('coluna de nº de documento não é confundida com o valor', () => {
+    // Data;Documento(000123);Descrição;Valor(-200,00) → deve pegar -200,00
+    const csv = `01/05/2026;000123;Pagamento;-200,00`;
+    const txns = parseCSV(csv);
+    expect(txns[0].valor).toBeCloseTo(200);
+    expect(txns[0].tipo).toBe('debito');
+  });
+
+  test('coluna de saldo não vaza para a descrição nem vira o valor', () => {
+    // Data;Histórico;Valor;Saldo
+    const csv = `01/05/2026;Compra mercado;-50,00;1.200,00`;
+    const txns = parseCSV(csv);
+    expect(txns[0].valor).toBeCloseTo(50);
+    expect(txns[0].descricao).toBe('Compra mercado');
+  });
+
+  test('fitId do CSV é estável por conteúdo (mesmo CSV → mesmo fitId)', () => {
+    const csv = `01/05/2026;Compra;-50,00`;
+    const a = parseCSV(csv)[0].fitId;
+    const b = parseCSV(csv)[0].fitId;
+    expect(a).toBe(b);
+    expect(a).toContain('csv|');
   });
 });
 

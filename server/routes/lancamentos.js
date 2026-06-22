@@ -158,6 +158,67 @@ module.exports = function lancamentosRoutes({
     }
   });
 
+  // ── POST /api/lancamentos/bulk — importação OFX/CSV em lote ──────────────
+  // Recebe a conta destino (por id ou código) e um array de lançamentos.
+  // Deduplica por fit_id e insere tudo numa única requisição/instrução,
+  // evitando o rate limit de escrita que quebrava extratos grandes.
+
+  router.post('/lancamentos/bulk', writeLimiter, jwtMiddleware, requireRole('operador'), async (req, res) => {
+    if (!db) return res.status(501).json({ ok:false, erro:'DB disabled' });
+    const empresaId = req.user.empresaId;
+    if (!empresaId) return res.status(403).json({ ok:false, erro:'Sem empresa associada' });
+
+    const schema = Joi.object({
+      conta_id:     Joi.number().integer().positive().optional(),
+      conta_codigo: Joi.string().max(50).optional(),
+      lancamentos:  Joi.array().min(1).max(1000).required().items(Joi.object({
+        data:      Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required()
+                     .messages({ 'string.pattern.base':'"data" deve estar no formato YYYY-MM-DD' }),
+        tipo:      Joi.string().valid('credito','debito').required(),
+        valor:     Joi.number().positive().required(),
+        descricao: Joi.string().max(500).optional().allow('', null),
+        fit_id:    Joi.string().max(255).optional().allow('', null),
+      })),
+    }).or('conta_id', 'conta_codigo');
+    const { error, value: body } = schema.validate(req.body, { abortEarly:true, stripUnknown:true });
+    if (error) return res.status(400).json({ ok:false, erro: error.details[0].message });
+
+    try {
+      let conta = null;
+      if (body.conta_id) {
+        conta = await lancamentosRepo.findContaById(empresaId, body.conta_id);
+      }
+      if (!conta && body.conta_codigo) {
+        conta = await lancamentosRepo.findContaByCodigo(empresaId, body.conta_codigo);
+      }
+      if (!conta) return res.status(400).json({ ok:false, erro:'Conta não identificada' });
+
+      const total   = body.lancamentos.length;
+      const fitIds  = body.lancamentos.map(l => l.fit_id).filter(Boolean);
+      const existing = await lancamentosRepo.existingFitIds(empresaId, conta.id, fitIds);
+
+      const seen = new Set();   // dedup dentro do próprio lote
+      const toInsert = [];
+      for (const l of body.lancamentos) {
+        const fit = l.fit_id || null;
+        if (fit && (existing.has(fit) || seen.has(fit))) continue;
+        if (fit) seen.add(fit);
+        toInsert.push({ data: l.data, tipo: l.tipo, valor: l.valor, descricao: l.descricao || null, fitId: fit });
+      }
+
+      const { inserted } = await lancamentosRepo.bulkInsert(empresaId, conta.id, toInsert);
+      const skipped = total - inserted;
+
+      await audit(req, 'lancamentos_importados', 'lancamento', conta.id, {
+        conta_id: conta.id, total, inserted, skipped,
+      });
+      res.json({ ok:true, total, inserted, skipped });
+    } catch(e) {
+      logger.error('POST /api/lancamentos/bulk falhou', { err: e && e.message });
+      res.status(500).json({ ok:false, erro:'DB error' });
+    }
+  });
+
   // ── PUT /api/lancamentos/:id ─────────────────────────────────────────────
 
   router.put('/lancamentos/:id', writeLimiter, jwtMiddleware, requireRole('operador'), async (req, res) => {

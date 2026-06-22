@@ -28,6 +28,8 @@ const TEST_MARKERS = [
   'Lançamento de teste automatizado',
   'Lançamento editado pelo teste',
   'softdelete-test',
+  'OFX bulk teste A',
+  'OFX bulk teste B',
 ];
 
 async function limparResiduosDeTeste() {
@@ -374,6 +376,129 @@ describe('GET /api/lancamentos — paginação e validação', () => {
     const res = await request(app)
       .get('/api/lancamentos?conta_id=1&ordem=invalido')
       .set('Authorization', 'Bearer ' + token);
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+  });
+});
+
+// ── POST /api/lancamentos/bulk — importação OFX/CSV em lote ─────────────────
+
+describe('POST /api/lancamentos/bulk — validação sem DB', () => {
+  test('sem token retorna 401', async () => {
+    const res = await request(app)
+      .post('/api/lancamentos/bulk')
+      .send({ conta_codigo: '1', lancamentos: [{ data: '2026-05-01', tipo: 'credito', valor: 10 }] });
+    expect(res.status).toBe(401);
+  });
+
+  test('token de visualizador retorna 403', async () => {
+    const token = makeToken({ perfil: 'visualizador' });
+    const res = await request(app)
+      .post('/api/lancamentos/bulk')
+      .set('Authorization', 'Bearer ' + token)
+      .send({ conta_codigo: '1', lancamentos: [{ data: '2026-05-01', tipo: 'credito', valor: 10 }] });
+    expect(res.status).toBe(403);
+  });
+
+  test('sem conta_id nem conta_codigo retorna 400', async () => {
+    const token = makeToken({ perfil: 'operador' });
+    const res = await request(app)
+      .post('/api/lancamentos/bulk')
+      .set('Authorization', 'Bearer ' + token)
+      .send({ lancamentos: [{ data: '2026-05-01', tipo: 'credito', valor: 10 }] });
+    expect(res.status).toBe(400);
+  });
+
+  test('array de lançamentos vazio retorna 400', async () => {
+    const token = makeToken({ perfil: 'operador' });
+    const res = await request(app)
+      .post('/api/lancamentos/bulk')
+      .set('Authorization', 'Bearer ' + token)
+      .send({ conta_codigo: '1', lancamentos: [] });
+    expect(res.status).toBe(400);
+  });
+
+  test('lançamento com tipo inválido retorna 400', async () => {
+    const token = makeToken({ perfil: 'operador' });
+    const res = await request(app)
+      .post('/api/lancamentos/bulk')
+      .set('Authorization', 'Bearer ' + token)
+      .send({ conta_codigo: '1', lancamentos: [{ data: '2026-05-01', tipo: 'xpto', valor: 10 }] });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /api/lancamentos/bulk — importação e dedup (DB real)', () => {
+  let token;
+  const FIT_A = 'jesttest|ofx|A|' + Date.now();
+  const FIT_B = 'jesttest|ofx|B|' + Date.now();
+
+  beforeAll(async () => {
+    if (SKIP_DB) return;
+    token = await getAdminToken();
+    await limparResiduosDeTeste();
+  });
+  afterAll(limparResiduosDeTeste);
+
+  dbTest('importa lote novo: inserted = total, skipped = 0', async () => {
+    const res = await request(app)
+      .post('/api/lancamentos/bulk')
+      .set('Authorization', 'Bearer ' + token)
+      .send({
+        conta_codigo: '1',
+        lancamentos: [
+          { data: '2026-05-01', tipo: 'credito', valor: 11.11, descricao: 'OFX bulk teste A', fit_id: FIT_A },
+          { data: '2026-05-02', tipo: 'debito',  valor: 22.22, descricao: 'OFX bulk teste B', fit_id: FIT_B },
+        ],
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.total).toBe(2);
+    expect(res.body.inserted).toBe(2);
+    expect(res.body.skipped).toBe(0);
+  });
+
+  dbTest('reimportar o mesmo lote deduplica: inserted = 0, skipped = total', async () => {
+    const res = await request(app)
+      .post('/api/lancamentos/bulk')
+      .set('Authorization', 'Bearer ' + token)
+      .send({
+        conta_codigo: '1',
+        lancamentos: [
+          { data: '2026-05-01', tipo: 'credito', valor: 11.11, descricao: 'OFX bulk teste A', fit_id: FIT_A },
+          { data: '2026-05-02', tipo: 'debito',  valor: 22.22, descricao: 'OFX bulk teste B', fit_id: FIT_B },
+        ],
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.inserted).toBe(0);
+    expect(res.body.skipped).toBe(2);
+  });
+
+  dbTest('deduplica fit_id repetido dentro do próprio lote', async () => {
+    const FIT_C = 'jesttest|ofx|C|' + Date.now();
+    const res = await request(app)
+      .post('/api/lancamentos/bulk')
+      .set('Authorization', 'Bearer ' + token)
+      .send({
+        conta_codigo: '1',
+        lancamentos: [
+          { data: '2026-05-03', tipo: 'credito', valor: 33.33, descricao: 'OFX bulk teste A', fit_id: FIT_C },
+          { data: '2026-05-03', tipo: 'credito', valor: 33.33, descricao: 'OFX bulk teste A', fit_id: FIT_C },
+        ],
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.inserted).toBe(1);
+    expect(res.body.skipped).toBe(1);
+  });
+
+  dbTest('conta inexistente retorna 400', async () => {
+    const res = await request(app)
+      .post('/api/lancamentos/bulk')
+      .set('Authorization', 'Bearer ' + token)
+      .send({
+        conta_codigo: '999.999',
+        lancamentos: [{ data: '2026-05-01', tipo: 'credito', valor: 5, descricao: 'OFX bulk teste A', fit_id: 'x' }],
+      });
     expect(res.status).toBe(400);
     expect(res.body.ok).toBe(false);
   });

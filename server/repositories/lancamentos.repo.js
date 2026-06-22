@@ -56,6 +56,52 @@ module.exports = function createLancamentosRepo({ db }) {
       return { rows: truncated ? rows.slice(0, limit) : rows, truncated };
     },
 
+    /** Verifica se uma conta pertence à empresa pelo id (para import em lote). */
+    async findContaById(empresaId, contaId) {
+      const rows = await db.query(
+        'SELECT id FROM conta WHERE empresa_id = ? AND id = ? AND deleted_at IS NULL LIMIT 1',
+        [empresaId, contaId]
+      );
+      return rows.length ? rows[0] : null;
+    },
+
+    /**
+     * Retorna o Set de fit_ids já existentes para (empresa, conta) dentre os
+     * fornecidos. Usado para deduplicar importação OFX/CSV.
+     */
+    async existingFitIds(empresaId, contaId, fitIds) {
+      const ids = fitIds.filter(Boolean);
+      if (!ids.length) return new Set();
+      const placeholders = ids.map(() => '?').join(',');
+      const rows = await db.query(
+        `SELECT fit_id FROM lancamento WHERE empresa_id = ? AND conta_id = ? AND fit_id IN (${placeholders})`,
+        [empresaId, contaId, ...ids]
+      );
+      return new Set(rows.map(r => r.fit_id));
+    },
+
+    /**
+     * Insere vários lançamentos numa única instrução. INSERT IGNORE protege
+     * contra corrida com o índice único (ux_lanc_empresa_conta_fit).
+     * rows: [{ data, tipo, valor, descricao, fitId }]
+     * Retorna { inserted } (affectedRows reais).
+     */
+    async bulkInsert(empresaId, contaId, rows) {
+      if (!rows.length) return { inserted: 0 };
+      const placeholders = rows.map(() => '(?,?,?,?,?,?,?,NOW())').join(',');
+      const params = [];
+      for (const r of rows) {
+        params.push(empresaId, contaId, r.data, r.tipo, r.valor, r.descricao || null, r.fitId || null);
+      }
+      const res = await db.execute(
+        `INSERT IGNORE INTO lancamento
+           (empresa_id, conta_id, data, tipo, valor, descricao, fit_id, created_at)
+         VALUES ${placeholders}`,
+        params
+      );
+      return { inserted: res.affectedRows };
+    },
+
     /** Verifica se uma conta pertence à empresa (para GET lista). */
     async findContaForQuery(empresaId, contaId) {
       const rows = await db.query(
