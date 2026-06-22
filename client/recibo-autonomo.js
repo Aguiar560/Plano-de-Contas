@@ -1,17 +1,5 @@
 'use strict';
 
-const _RECIBO_SEQ_KEY = 'plano_recibo_seq';
-
-
-function _reciboNextNum() {
-  const ano = new Date().getFullYear();
-  let stored = { ano: 0, seq: 0 };
-  try { stored = JSON.parse(localStorage.getItem(_RECIBO_SEQ_KEY) || '{}'); } catch {}
-  const seq = (stored.ano === ano ? (stored.seq || 0) : 0) + 1;
-  localStorage.setItem(_RECIBO_SEQ_KEY, JSON.stringify({ ano, seq }));
-  return { seq, ano, num: String(seq).padStart(4, '0'), formatted: String(seq).padStart(4, '0') + '/' + ano };
-}
-
 function _reciboFmt(v) {
   return (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -398,11 +386,14 @@ async function abrirReciboAutonomo({ lancamento, conta, fornecedor, reciboFormat
     : [{ descricao: lancamento.descricao || (conta ? conta.nome : ''), valor: lancamento.valor }];
   const total = itens.reduce((s, i) => s + (parseFloat(i.valor) || 0), 0);
 
-  // Reimpressão: usa número já existente sem criar novo registro
+  // Número do recibo: SEMPRE proveniente do servidor — fonte autoritativa, com
+  // numeração transacional por empresa+ano. Na reimpressão, reusa o número já
+  // existente sem criar novo registro.
   let formatted = reciboFormatted || null;
   if (!formatted) {
+    const dataISO = lancamento.data || new Date().toISOString().slice(0, 10);
+    let j = null;
     try {
-      const dataISO = lancamento.data || new Date().toISOString().slice(0, 10);
       const resp = await fetch('/api/recibos', {
         method: 'POST',
         credentials: 'include',
@@ -417,12 +408,21 @@ async function abrirReciboAutonomo({ lancamento, conta, fornecedor, reciboFormat
           descricao:       lancamento.descricao || (conta ? conta.nome : '') || undefined,
         }),
       });
-      const j = await resp.json();
-      if (j && j.ok && j.formatted) formatted = j.formatted;
+      j = await resp.json();
     } catch (e) {
-      if (typeof log !== 'undefined') log.warn('Recibo: falha ao registrar no servidor, usando sequência local', e);
+      if (typeof log !== 'undefined') log.warn('Recibo: falha de rede ao registrar no servidor', e);
     }
-    if (!formatted) formatted = _reciboNextNum().formatted;
+    if (j && j.ok && j.formatted) {
+      formatted = j.formatted;
+    } else {
+      // Sem número autoritativo do servidor, NÃO emitimos o recibo: um número
+      // gerado localmente não corresponderia a nenhum registro e poderia
+      // duplicar a numeração fiscal entre dispositivos/navegadores.
+      const msg = (j && j.erro) ? j.erro
+        : 'Não foi possível registrar o recibo no servidor. Verifique a conexão e tente novamente.';
+      if (typeof showToast === 'function') showToast(msg, 'error');
+      return;
+    }
   }
 
   const endParts = [
