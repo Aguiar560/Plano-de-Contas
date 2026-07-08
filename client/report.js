@@ -1408,7 +1408,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnImprimirRel) {
     btnImprimirRel.addEventListener('click', () => {
-      if (!relatorioResultado?.innerHTML.trim() || relatorioResultado.querySelector('.rel-empty')) {
+      // Bloqueia só quando o painel ainda mostra o placeholder inicial;
+      // <p class="rel-empty"> dentro de um relatório gerado (ex.: Analítico sem receitas) não conta.
+      if (!relatorioResultado?.innerHTML.trim() || relatorioResultado.querySelector('.empty-state, div.rel-empty')) {
         if (typeof showToast === 'function') showToast('Gere o relatório antes de imprimir.', 'warning');
         return;
       }
